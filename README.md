@@ -37,11 +37,37 @@ Este repo já inclui `netlify.toml`:
   - `/api/*` → `/.netlify/functions/api/:splat` (tRPC + OAuth callback)
   - `/*` → `/index.html` (SPA)
 
-No Netlify, configure as variáveis de ambiente necessárias (ver `.env.example`).
+No Netlify:
+
+- Conecte o site ao branch `main` (recomendado).
+- Não use “Base directory” (deixe vazio) para o `netlify.toml` na raiz ser respeitado.
+- Variáveis de ambiente: veja `.env.example`.
+
+Para diagnosticar se a galeria está OK em produção, acesse:
+
+- `https://SEU-SITE.netlify.app/api/trpc/gallery.status`
 
 ## Google Drive (orçamentos + imagens)
 
-Para armazenar **orçamentos** e carregar **imagens do portfólio** pelo Google Drive:
+### Imagens/Logo (somente leitura — pasta pública)
+
+Se a pasta estiver pública (“Qualquer pessoa com o link → Leitor”), o site consegue **listar e exibir** as imagens
+sem credenciais (modo público).
+
+Por padrão, o projeto já aponta para a pasta:
+
+- `1eb1HNBEMNyWPrTBrtgSUsw3HXA36VnOR`
+
+Se quiser trocar, defina `GOOGLE_DRIVE_IMAGES_FOLDER_ID`.
+
+Coloque um arquivo `logo.png` (ou `logo.jpg/.jpeg/.webp`) dentro da mesma pasta para o header usar automaticamente.
+
+### Orçamentos (escrita — requer autenticação)
+
+Para salvar **orçamentos** como JSON no Drive é necessário autenticação via **Service Account** (ou usar banco).
+Não existe upload “anônimo” no Drive só por estar público.
+
+Para armazenar **orçamentos** e carregar **imagens do portfólio** pelo Google Drive usando API:
 
 - Crie uma **Service Account** no Google Cloud, habilite a **Google Drive API** e gere uma chave.
 - No Google Drive, compartilhe a pasta com o **e-mail** da Service Account (permissão de **Editor**).
@@ -61,4 +87,8 @@ O sistema ordena pelo número inicial (quando existir) e usa o resto do nome com
 
 ## Logo
 
-Por padrão o site usa `client/public/logo.png`. Opcionalmente você pode configurar `VITE_LOGO_URL` no `.env` para usar uma URL externa (ex.: Drive/CDN).
+Por padrão o site usa `client/public/logo.png`.
+
+Se existir um `logo.png` dentro da pasta do Drive configurada, o site prioriza esse logo automaticamente.
+
+Opcionalmente você pode configurar `VITE_LOGO_URL` no `.env` para usar uma URL externa (ex.: Drive/CDN).
