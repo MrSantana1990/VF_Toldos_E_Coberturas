@@ -108,6 +108,11 @@ export const appRouter = router({
             status: "pending",
           });
         } else if (isDriveConfigured()) {
+          if (!ENV.googleDriveQuotesFolderId) {
+            throw new Error(
+              "Google Drive configurado (Service Account), mas falta definir GOOGLE_DRIVE_QUOTES_FOLDER_ID no ambiente."
+            );
+          }
           const quote: DriveQuote = {
             id: Date.now(),
             clientName: input.clientName,
@@ -132,8 +137,18 @@ export const appRouter = router({
             );
           }
         } else {
+          const missingEmail = !ENV.googleServiceAccountEmail?.trim();
+          const missingKey = !ENV.googleServiceAccountPrivateKey?.trim();
+          const missingFolder = !ENV.googleDriveQuotesFolderId?.trim();
           throw new Error(
-            "Sem banco (DATABASE_URL) e sem Google Drive configurado. Configure o banco ou as variáveis do Drive."
+            [
+              "Sem banco (DATABASE_URL) e sem Google Drive configurado para salvar orçamentos.",
+              "Configure o banco ou defina as variáveis do Drive no ambiente (Netlify).",
+              "",
+              `- GOOGLE_SERVICE_ACCOUNT_EMAIL: ${missingEmail ? "FALTANDO" : "OK"}`,
+              `- GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${missingKey ? "FALTANDO" : "OK"}`,
+              `- GOOGLE_DRIVE_QUOTES_FOLDER_ID: ${missingFolder ? "FALTANDO" : "OK"}`,
+            ].join("\n")
           );
         }
         await notifyOwner({
