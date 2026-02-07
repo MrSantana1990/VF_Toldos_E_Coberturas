@@ -63,6 +63,50 @@ function toQuoteDto(input: any): QuoteDto {
   };
 }
 
+function formatDriveError(error: unknown): string {
+  const asAny = error as any;
+  const status =
+    asAny?.code ?? asAny?.response?.status ?? asAny?.status ?? undefined;
+  const statusText = asAny?.response?.statusText ?? undefined;
+  const message =
+    asAny?.response?.data?.error?.message ?? asAny?.message ?? String(error);
+
+  const msg = String(message ?? "").trim();
+  const msgLower = msg.toLowerCase();
+
+  const hints: string[] = [];
+  if (msgLower.includes("accessnotconfigured") || msgLower.includes("has not been used")) {
+    hints.push(
+      "Dica: ative a Google Drive API no Google Cloud do projeto da Service Account."
+    );
+  }
+  if (msgLower.includes("invalid_grant") || msgLower.includes("invalid jwt") || msgLower.includes("jwt")) {
+    hints.push(
+      "Dica: confira se `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` foi colada corretamente (sem aspas extras; com `\\n`)."
+    );
+  }
+  if (msgLower.includes("file not found") || msgLower.includes("not found")) {
+    hints.push(
+      "Dica: confirme se `GOOGLE_DRIVE_QUOTES_FOLDER_ID` está correto e se a pasta foi compartilhada com o e-mail da Service Account como Editor."
+    );
+  }
+  if (msgLower.includes("insufficientpermissions") || msgLower.includes("permission") || msgLower.includes("forbidden")) {
+    hints.push(
+      "Dica: compartilhe a pasta de orçamentos com o e-mail da Service Account como Editor e tente novamente."
+    );
+  }
+
+  const statusPart =
+    status !== undefined ? ` (status ${status}${statusText ? ` ${statusText}` : ""})` : "";
+
+  return [
+    `Detalhes do erro${statusPart}: ${msg}`,
+    hints.length ? hints.join(" ") : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -133,7 +177,10 @@ export const appRouter = router({
           } catch (error) {
             console.error("[Drive] Falha ao salvar orçamento:", error);
             throw new Error(
-              "Falha ao salvar orçamento no Google Drive. Verifique as variáveis de ambiente e o compartilhamento da pasta."
+              [
+                "Falha ao salvar orçamento no Google Drive. Verifique as variáveis de ambiente e o compartilhamento da pasta.",
+                formatDriveError(error),
+              ].join("\n")
             );
           }
         } else {

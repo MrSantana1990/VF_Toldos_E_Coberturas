@@ -14,8 +14,17 @@ const _publicFolderListCache = new Map<
 >();
 
 function normalizePrivateKey(key: string): string {
-  // Netlify env vars often store newlines as literal "\n"
-  return key.replace(/\\n/g, "\n");
+  // Netlify env vars often store newlines as literal "\n".
+  // Also be resilient to extra surrounding quotes from copy/paste.
+  let value = key.trim();
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
+  }
+
+  return value.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
 }
 
 function isNonEmpty(value: string | undefined | null): value is string {
