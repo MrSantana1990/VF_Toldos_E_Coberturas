@@ -24,7 +24,18 @@ function normalizePrivateKey(key: string): string {
     value = value.slice(1, -1);
   }
 
-  return value.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+  // Normalize any CRLF coming from copy/paste.
+  value = value.replace(/\r\n/g, "\n");
+
+  // Handle common cases:
+  // - "\n" (single-escaped)  -> newline
+  // - "\\n" (double-escaped) -> newline (avoid leaving stray "\" that corrupts PEM)
+  value = value.replace(/\\\\n/g, "\n").replace(/\\n/g, "\n");
+
+  // If a stray "\" ended up right before a real newline, remove it.
+  value = value.replace(/\\\n/g, "\n");
+
+  return value;
 }
 
 function isNonEmpty(value: string | undefined | null): value is string {
