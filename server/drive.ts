@@ -24,6 +24,19 @@ function normalizePrivateKey(key: string): string {
     value = value.slice(1, -1);
   }
 
+  // Some users paste the entire Service Account JSON into the env var by mistake.
+  // If it looks like JSON, try to extract `private_key` from it.
+  if (value.trim().startsWith("{") && value.includes(`"private_key"`)) {
+    try {
+      const parsed = JSON.parse(value) as { private_key?: unknown };
+      if (typeof parsed.private_key === "string" && parsed.private_key.trim()) {
+        value = parsed.private_key.trim();
+      }
+    } catch {
+      // Ignore and keep original value; we'll validate later.
+    }
+  }
+
   // Normalize any CRLF coming from copy/paste.
   value = value.replace(/\r\n/g, "\n");
 
@@ -34,6 +47,18 @@ function normalizePrivateKey(key: string): string {
 
   // If a stray "\" ended up right before a real newline, remove it.
   value = value.replace(/\\\n/g, "\n");
+
+  // Basic PEM validation before handing it to crypto/OpenSSL.
+  if (!value.includes("-----BEGIN PRIVATE KEY-----")) {
+    throw new Error(
+      "Chave privada invÃ¡lida: `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter um PEM que comeÃ§a com '-----BEGIN PRIVATE KEY-----'. (Dica: cole apenas o campo `private_key` do JSON da Service Account.)"
+    );
+  }
+  if (!value.includes("-----END PRIVATE KEY-----")) {
+    throw new Error(
+      "Chave privada invÃ¡lida: `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter o final '-----END PRIVATE KEY-----'."
+    );
+  }
 
   return value;
 }
