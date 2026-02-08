@@ -10,6 +10,11 @@ export const ENV = {
   googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "",
   googleServiceAccountPrivateKey:
     process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "",
+  googleServiceAccountPrivateKeyBase64:
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_BASE64 ?? "",
+  googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
+  googleServiceAccountJsonBase64:
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 ?? "",
   googleDriveQuotesFolderId: process.env.GOOGLE_DRIVE_QUOTES_FOLDER_ID ?? "",
   // Pasta pública do Drive (imagens + logo) usada pelo site.
   // Se quiser trocar, defina `GOOGLE_DRIVE_IMAGES_FOLDER_ID` no ambiente (Netlify) ou `.env` local.

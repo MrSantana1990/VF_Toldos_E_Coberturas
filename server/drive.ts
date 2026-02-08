@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { ENV } from "./_core/env";
+import { createPrivateKey } from "node:crypto";
 
 type DriveClient = ReturnType<typeof google.drive>;
 
@@ -51,12 +52,27 @@ function normalizePrivateKey(key: string): string {
   // Basic PEM validation before handing it to crypto/OpenSSL.
   if (!value.includes("-----BEGIN PRIVATE KEY-----")) {
     throw new Error(
-      "Chave privada invÃ¡lida: `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter um PEM que comeÃ§a com '-----BEGIN PRIVATE KEY-----'. (Dica: cole apenas o campo `private_key` do JSON da Service Account.)"
+      "Chave privada inválida: a env `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter um PEM que começa com '-----BEGIN PRIVATE KEY-----'. (Dica: cole apenas o campo `private_key` do JSON da Service Account ou use `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`.)"
     );
   }
   if (!value.includes("-----END PRIVATE KEY-----")) {
     throw new Error(
-      "Chave privada invÃ¡lida: `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter o final '-----END PRIVATE KEY-----'."
+      "Chave privada inválida: a env `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` precisa conter o final '-----END PRIVATE KEY-----'."
+    );
+  }
+
+  try {
+    createPrivateKey(value);
+  } catch (error) {
+    const asAny = error as any;
+    const code = asAny?.code ? ` (${asAny.code})` : "";
+    const msg = asAny?.message ? String(asAny.message) : String(error);
+    throw new Error(
+      [
+        `Chave privada inválida${code}: o Node/OpenSSL não conseguiu decodificar o PEM.`,
+        `Detalhe: ${msg}`,
+        "Dica: no Netlify, a forma mais estável é usar `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` (conteúdo do JSON em base64).",
+      ].join("\n")
     );
   }
 
@@ -67,11 +83,66 @@ function isNonEmpty(value: string | undefined | null): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+type ServiceAccountJson = {
+  client_email?: unknown;
+  private_key?: unknown;
+};
+
+function decodeBase64(input: string): string {
+  return Buffer.from(input, "base64").toString("utf8");
+}
+
+function tryParseServiceAccountJson(
+  jsonText: string
+): { email?: string; privateKey?: string } | null {
+  try {
+    const parsed = JSON.parse(jsonText) as ServiceAccountJson;
+    const email =
+      typeof parsed.client_email === "string"
+        ? parsed.client_email.trim()
+        : undefined;
+    const privateKey =
+      typeof parsed.private_key === "string" ? parsed.private_key.trim() : undefined;
+    return { email, privateKey };
+  } catch {
+    return null;
+  }
+}
+
+function resolveServiceAccount(): { email: string; privateKey: string } | null {
+  // Prefer JSON in base64 (avoids newline/escape issues on providers like Netlify)
+  if (isNonEmpty(ENV.googleServiceAccountJsonBase64)) {
+    const decoded = decodeBase64(ENV.googleServiceAccountJsonBase64);
+    const parsed = tryParseServiceAccountJson(decoded);
+    if (parsed?.email && parsed?.privateKey) {
+      return { email: parsed.email, privateKey: parsed.privateKey };
+    }
+  }
+
+  if (isNonEmpty(ENV.googleServiceAccountJson)) {
+    const parsed = tryParseServiceAccountJson(ENV.googleServiceAccountJson);
+    if (parsed?.email && parsed?.privateKey) {
+      return { email: parsed.email, privateKey: parsed.privateKey };
+    }
+  }
+
+  const email = ENV.googleServiceAccountEmail;
+  let privateKey = ENV.googleServiceAccountPrivateKey;
+
+  if (isNonEmpty(ENV.googleServiceAccountPrivateKeyBase64)) {
+    privateKey = decodeBase64(ENV.googleServiceAccountPrivateKeyBase64);
+  }
+
+  if (isNonEmpty(email) && isNonEmpty(privateKey)) {
+    return { email, privateKey };
+  }
+
+  return null;
+}
+
 export function isDriveConfigured() {
-  return (
-    isNonEmpty(ENV.googleServiceAccountEmail) &&
-    isNonEmpty(ENV.googleServiceAccountPrivateKey)
-  );
+  const resolved = resolveServiceAccount();
+  return Boolean(resolved?.email && resolved?.privateKey);
 }
 
 export type PublicFolderAccessResult = {
@@ -122,9 +193,16 @@ function getDrive(): DriveClient {
     );
   }
 
+  const resolved = resolveServiceAccount();
+  if (!resolved) {
+    throw new Error(
+      "Google Drive não configurado: defina as credenciais da Service Account (recomendado: GOOGLE_SERVICE_ACCOUNT_JSON_BASE64)."
+    );
+  }
+
   const auth = new google.auth.JWT({
-    email: ENV.googleServiceAccountEmail,
-    key: normalizePrivateKey(ENV.googleServiceAccountPrivateKey),
+    email: resolved.email,
+    key: normalizePrivateKey(resolved.privateKey),
     scopes: ["https://www.googleapis.com/auth/drive"],
   });
 
