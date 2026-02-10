@@ -158,6 +158,11 @@ const plugins = [
 
 export default defineConfig({
   plugins,
+  define: {
+    __BUILD_COMMIT_REF__: JSON.stringify(process.env.COMMIT_REF || ""),
+    __BUILD_CONTEXT__: JSON.stringify(process.env.CONTEXT || ""),
+    __BUILD_TIME_ISO__: JSON.stringify(new Date().toISOString()),
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

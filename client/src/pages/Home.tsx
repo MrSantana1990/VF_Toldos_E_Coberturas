@@ -11,6 +11,12 @@ import { useLocation } from "wouter";
 import { ArrowRight, Zap, Shield, Clock } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ADMIN_LOGIN_PATH,
+  CONTACT_EMAIL,
+  CONTACT_PHONE_DISPLAY,
+  CONTACT_PHONE_TEL,
+} from "@/siteConfig";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
@@ -410,22 +416,22 @@ export default function Home() {
               <h4 className="font-semibold text-foreground mb-4">Serviços</h4>
               <ul className="space-y-2 text-sm text-foreground/70">
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#servicos" className="hover:text-foreground">
                     Toldos Fixos
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#servicos" className="hover:text-foreground">
                     Toldos Retráteis
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#servicos" className="hover:text-foreground">
                     Cortinas Rolo
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#servicos" className="hover:text-foreground">
                     Policarbonato
                   </a>
                 </li>
@@ -435,18 +441,23 @@ export default function Home() {
               <h4 className="font-semibold text-foreground mb-4">Empresa</h4>
               <ul className="space-y-2 text-sm text-foreground/70">
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#sobre" className="hover:text-foreground">
                     Sobre Nós
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#portfolio" className="hover:text-foreground">
                     Portfolio
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-foreground">
+                  <a href="#contato" className="hover:text-foreground">
                     Contato
+                  </a>
+                </li>
+                <li>
+                  <a href={ADMIN_LOGIN_PATH} className="hover:text-foreground">
+                    Área do administrador
                   </a>
                 </li>
               </ul>
@@ -454,9 +465,25 @@ export default function Home() {
             <div>
               <h4 className="font-semibold text-foreground mb-4">Contato</h4>
               <p className="text-sm text-foreground/70">
-                <strong>Email:</strong> contato@vftoldos.com.br
+                <strong>Email:</strong>{" "}
+                <a
+                  className="hover:text-foreground"
+                  href={`mailto:${CONTACT_EMAIL}`}
+                >
+                  {CONTACT_EMAIL}
+                </a>
                 <br />
-                <strong>Telefone:</strong> (11) 9999-9999
+                <strong>Telefone:</strong>{" "}
+                {CONTACT_PHONE_TEL ? (
+                  <a
+                    className="hover:text-foreground"
+                    href={`tel:${CONTACT_PHONE_TEL}`}
+                  >
+                    {CONTACT_PHONE_DISPLAY}
+                  </a>
+                ) : (
+                  CONTACT_PHONE_DISPLAY
+                )}
               </p>
             </div>
           </div>
@@ -464,6 +491,12 @@ export default function Home() {
             <p>
               &copy; 2026 VF Toldos & Coberturas. Todos os direitos reservados.
             </p>
+            {__BUILD_COMMIT_REF__ ? (
+              <p className="mt-2">
+                Build: {__BUILD_COMMIT_REF__}
+                {__BUILD_CONTEXT__ ? ` (${__BUILD_CONTEXT__})` : ""}
+              </p>
+            ) : null}
           </div>
         </div>
       </footer>

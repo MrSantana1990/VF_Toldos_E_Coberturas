@@ -39,6 +39,13 @@ Variáveis do frontend (Vite):
 - `VITE_WHATSAPP_COMPANY_PHONE` (ex.: `5519988720017`)
 - `VITE_WHATSAPP_DEV_PHONE` (opcional)
 
+## Contato (site)
+
+O footer do site usa:
+
+- `VITE_CONTACT_EMAIL`
+- `VITE_CONTACT_PHONE`
+
 ## Build/produção local
 
 `pnpm build`
