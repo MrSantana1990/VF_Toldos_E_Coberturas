@@ -1,7 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,9 +17,12 @@ export default function Appointments() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
 
-  const { data: appointments, isLoading } = trpc.appointments.list.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const { data: appointments, isLoading } = trpc.appointments.list.useQuery(
+    undefined,
+    {
+      enabled: isAuthenticated,
+    }
+  );
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -63,18 +72,26 @@ export default function Appointments() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation("/admin")}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">Agenda de Agendamentos</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            Agenda de Agendamentos
+          </h1>
         </div>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Agendamentos Próximos</CardTitle>
-          <CardDescription>Visitas técnicas, instalações e manutenções agendadas</CardDescription>
+          <CardDescription>
+            Visitas técnicas, instalações e manutenções agendadas
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -84,23 +101,38 @@ export default function Appointments() {
           ) : appointments && appointments.length > 0 ? (
             <div className="space-y-4">
               {appointments.map((apt: any) => (
-                <div key={apt.id} className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                <div
+                  key={apt.id}
+                  className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-foreground">{apt.clientName}</h3>
-                      <p className="text-sm text-foreground/70">{apt.clientPhone}</p>
-                      <p className="text-sm text-foreground/70 mt-1">{apt.description}</p>
+                      <h3 className="font-semibold text-foreground">
+                        {apt.clientName}
+                      </h3>
+                      <p className="text-sm text-foreground/70">
+                        {apt.clientPhone}
+                      </p>
+                      <p className="text-sm text-foreground/70 mt-1">
+                        {apt.description}
+                      </p>
                     </div>
                     <div className="text-right">
                       <Badge className={getStatusColor(apt.status)}>
-                        {apt.status === "agendado" ? "Agendado" : apt.status === "concluido" ? "Concluído" : "Cancelado"}
+                        {apt.status === "agendado"
+                          ? "Agendado"
+                          : apt.status === "concluido"
+                            ? "Concluído"
+                            : "Cancelado"}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                     <div className="flex gap-4 text-sm text-foreground/70">
                       <span>{getTypeLabel(apt.appointmentType)}</span>
-                      <span>{new Date(apt.appointmentDate).toLocaleString("pt-BR")}</span>
+                      <span>
+                        {new Date(apt.appointmentDate).toLocaleString("pt-BR")}
+                      </span>
                     </div>
                   </div>
                 </div>

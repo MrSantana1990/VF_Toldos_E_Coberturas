@@ -87,9 +87,7 @@
       "compositePrimaryKeys": {
         "appointments_id": {
           "name": "appointments_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -164,9 +162,7 @@
       "compositePrimaryKeys": {
         "galleryImages_id": {
           "name": "galleryImages_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -276,9 +272,7 @@
       "compositePrimaryKeys": {
         "quotes_id": {
           "name": "quotes_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -366,9 +360,7 @@
       "compositePrimaryKeys": {
         "transactions_id": {
           "name": "transactions_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -451,17 +443,13 @@
       "compositePrimaryKeys": {
         "users_id": {
           "name": "users_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {
         "users_openId_unique": {
           "name": "users_openId_unique",
-          "columns": [
-            "openId"
-          ]
+          "columns": ["openId"]
         }
       },
       "checkConstraint": {}

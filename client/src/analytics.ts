@@ -4,8 +4,12 @@ type AnalyticsEnv = {
 };
 
 function readAnalyticsEnv(): AnalyticsEnv {
-  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT as string | undefined;
-  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID as string | undefined;
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT as
+    | string
+    | undefined;
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID as
+    | string
+    | undefined;
 
   return {
     endpoint: endpoint?.trim() || undefined,

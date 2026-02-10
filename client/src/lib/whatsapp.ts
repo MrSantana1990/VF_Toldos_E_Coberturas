@@ -7,12 +7,18 @@ export function toWhatsAppPhone(input: string) {
   if (!digits) return "";
 
   // Remove trunk prefix 0 (ex.: 01199998888 -> 1199998888)
-  if (digits.startsWith("0") && (digits.length === 12 || digits.length === 13)) {
+  if (
+    digits.startsWith("0") &&
+    (digits.length === 12 || digits.length === 13)
+  ) {
     digits = digits.slice(1);
   }
 
   // If already includes country code 55, keep it.
-  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+  if (
+    digits.startsWith("55") &&
+    (digits.length === 12 || digits.length === 13)
+  ) {
     return digits;
   }
 
@@ -27,7 +33,9 @@ export function toWhatsAppPhone(input: string) {
 
 export function getCompanyWhatsAppPhone() {
   // Número da empresa (fallback definido para este projeto).
-  return toWhatsAppPhone(import.meta.env.VITE_WHATSAPP_COMPANY_PHONE || "5519988720017");
+  return toWhatsAppPhone(
+    import.meta.env.VITE_WHATSAPP_COMPANY_PHONE || "5519988720017"
+  );
 }
 
 export function getDevWhatsAppPhone() {
@@ -76,8 +84,12 @@ export function buildAdminQuoteWhatsAppText(quote: {
   createdAt?: string | number | Date;
   driveFileId?: string | null;
 }) {
-  const createdAt = quote.createdAt ? new Date(quote.createdAt).toLocaleString("pt-BR") : null;
-  const driveUrl = quote.driveFileId ? `https://drive.google.com/file/d/${quote.driveFileId}/view` : null;
+  const createdAt = quote.createdAt
+    ? new Date(quote.createdAt).toLocaleString("pt-BR")
+    : null;
+  const driveUrl = quote.driveFileId
+    ? `https://drive.google.com/file/d/${quote.driveFileId}/view`
+    : null;
 
   const parts = [
     "Novo orçamento recebido ✅",

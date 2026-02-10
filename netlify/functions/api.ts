@@ -15,4 +15,3 @@ registerApiRoutes(app, { basePath: "" });
 export const handler = serverless(app, {
   basePath: "/.netlify/functions/api",
 });
-

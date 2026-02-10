@@ -1,4 +1,12 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  decimal,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -31,13 +39,20 @@ export const quotes = mysqlTable("quotes", {
   clientName: varchar("clientName", { length: 255 }).notNull(),
   clientEmail: varchar("clientEmail", { length: 320 }).notNull(),
   clientPhone: varchar("clientPhone", { length: 20 }).notNull(),
-  toldoType: mysqlEnum("toldoType", ["fixo", "retratil", "cortina", "policarbonato"]).notNull(),
+  toldoType: mysqlEnum("toldoType", [
+    "fixo",
+    "retratil",
+    "cortina",
+    "policarbonato",
+  ]).notNull(),
   material: varchar("material", { length: 100 }),
   width: decimal("width", { precision: 8, scale: 2 }).notNull(),
   projection: decimal("projection", { precision: 8, scale: 2 }).notNull(),
   areaM2: decimal("areaM2", { precision: 10, scale: 2 }),
   notes: text("notes"),
-  status: mysqlEnum("status", ["pending", "completed", "rejected"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "completed", "rejected"])
+    .default("pending")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -52,9 +67,15 @@ export const appointments = mysqlTable("appointments", {
   clientName: varchar("clientName", { length: 255 }).notNull(),
   clientPhone: varchar("clientPhone", { length: 20 }).notNull(),
   appointmentDate: timestamp("appointmentDate").notNull(),
-  appointmentType: mysqlEnum("appointmentType", ["visita_tecnica", "instalacao", "manutencao"]).notNull(),
+  appointmentType: mysqlEnum("appointmentType", [
+    "visita_tecnica",
+    "instalacao",
+    "manutencao",
+  ]).notNull(),
   description: text("description"),
-  status: mysqlEnum("status", ["agendado", "concluido", "cancelado"]).default("agendado").notNull(),
+  status: mysqlEnum("status", ["agendado", "concluido", "cancelado"])
+    .default("agendado")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

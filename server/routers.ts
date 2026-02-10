@@ -1,7 +1,12 @@
 import { ADMIN_COOKIE_NAME, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import {
+  adminProcedure,
+  publicProcedure,
+  protectedProcedure,
+  router,
+} from "./_core/trpc";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import * as db from "./db";
@@ -66,7 +71,8 @@ function toQuoteDto(input: any): QuoteDto {
     status: input.status ?? "pending",
     createdAt: toIso(input.createdAt),
     updatedAt: toIso(input.updatedAt),
-    source: input.source ?? (input.driveFileId || input.fileId ? "drive" : "db"),
+    source:
+      input.source ?? (input.driveFileId || input.fileId ? "drive" : "db"),
     driveFileId: input.driveFileId ?? input.fileId ?? null,
     driveFileName: input.driveFileName ?? input.fileName ?? null,
   };
@@ -84,12 +90,19 @@ function formatDriveError(error: unknown): string {
   const msgLower = msg.toLowerCase();
 
   const hints: string[] = [];
-  if (msgLower.includes("accessnotconfigured") || msgLower.includes("has not been used")) {
+  if (
+    msgLower.includes("accessnotconfigured") ||
+    msgLower.includes("has not been used")
+  ) {
     hints.push(
       "Dica: ative a Google Drive API no Google Cloud do projeto da Service Account."
     );
   }
-  if (msgLower.includes("invalid_grant") || msgLower.includes("invalid jwt") || msgLower.includes("jwt")) {
+  if (
+    msgLower.includes("invalid_grant") ||
+    msgLower.includes("invalid jwt") ||
+    msgLower.includes("jwt")
+  ) {
     hints.push(
       "Dica: confira se `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` foi colada corretamente (sem aspas extras; com `\\n`)."
     );
@@ -99,7 +112,11 @@ function formatDriveError(error: unknown): string {
       "Dica: confirme se `GOOGLE_DRIVE_QUOTES_FOLDER_ID` está correto e se a pasta foi compartilhada com o e-mail da Service Account como Editor."
     );
   }
-  if (msgLower.includes("insufficientpermissions") || msgLower.includes("permission") || msgLower.includes("forbidden")) {
+  if (
+    msgLower.includes("insufficientpermissions") ||
+    msgLower.includes("permission") ||
+    msgLower.includes("forbidden")
+  ) {
     hints.push(
       "Dica: compartilhe a pasta de orçamentos com o e-mail da Service Account como Editor e tente novamente."
     );
@@ -111,7 +128,9 @@ function formatDriveError(error: unknown): string {
   }
 
   const statusPart =
-    status !== undefined ? ` (status ${status}${statusText ? ` ${statusText}` : ""})` : "";
+    status !== undefined
+      ? ` (status ${status}${statusText ? ` ${statusText}` : ""})`
+      : "";
 
   return [
     `Detalhes do erro${statusPart}: ${msg}`,
@@ -122,7 +141,7 @@ function formatDriveError(error: unknown): string {
 }
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -209,17 +228,19 @@ export const appRouter = router({
 
   quotes: router({
     create: publicProcedure
-      .input(z.object({
-        clientName: z.string().min(1),
-        clientEmail: z.string().email(),
-        clientPhone: z.string().min(1),
-        toldoType: z.enum(["fixo", "retratil", "cortina", "policarbonato"]),
-        material: z.string().nullable(),
-        width: z.number().positive(),
-        projection: z.number().positive(),
-        areaM2: z.number().positive(),
-        notes: z.string().nullable(),
-      }))
+      .input(
+        z.object({
+          clientName: z.string().min(1),
+          clientEmail: z.string().email(),
+          clientPhone: z.string().min(1),
+          toldoType: z.enum(["fixo", "retratil", "cortina", "policarbonato"]),
+          material: z.string().nullable(),
+          width: z.number().positive(),
+          projection: z.number().positive(),
+          areaM2: z.number().positive(),
+          notes: z.string().nullable(),
+        })
+      )
       .mutation(async ({ input }) => {
         const nowIso = new Date().toISOString();
         const dbConn = await db.getDb();
@@ -339,7 +360,9 @@ export const appRouter = router({
         }
 
         if (!isDriveConfigured()) {
-          throw new Error("Google Drive não configurado para atualizar status.");
+          throw new Error(
+            "Google Drive não configurado para atualizar status."
+          );
         }
 
         await updateQuoteStatusInDrive(input.id, input.status);
@@ -363,13 +386,19 @@ export const appRouter = router({
             url: item.url,
           }));
         } catch (error) {
-          console.warn("[Drive] Galeria via API falhou, tentando modo público:", error);
+          console.warn(
+            "[Drive] Galeria via API falhou, tentando modo público:",
+            error
+          );
         }
       }
 
       const publicResult = await listImagesFromPublicDriveFolder(folderId, 200);
       if (!publicResult.status.ok) {
-        console.warn("[Drive] Galeria pública indisponível:", publicResult.status);
+        console.warn(
+          "[Drive] Galeria pública indisponível:",
+          publicResult.status
+        );
         return [];
       }
 
@@ -386,12 +415,19 @@ export const appRouter = router({
 
       const isLogoName = (name: string) => {
         const normalized = name.trim().toLowerCase();
-        return normalized === "logo.png" || normalized === "logo.jpg" || normalized === "logo.jpeg" || normalized === "logo.webp";
+        return (
+          normalized === "logo.png" ||
+          normalized === "logo.jpg" ||
+          normalized === "logo.jpeg" ||
+          normalized === "logo.webp"
+        );
       };
 
       const pickLogo = (items: { id: string; name: string }[]) => {
         const logo = items.find(i => isLogoName(i.name));
-        return logo ? { id: logo.id, name: logo.name, url: buildImageUrl(logo.id, 500) } : null;
+        return logo
+          ? { id: logo.id, name: logo.name, url: buildImageUrl(logo.id, 500) }
+          : null;
       };
 
       if (isDriveConfigured()) {
@@ -400,7 +436,10 @@ export const appRouter = router({
           const found = pickLogo(items);
           if (found) return found;
         } catch (error) {
-          console.warn("[Drive] Logo via API falhou, tentando modo público:", error);
+          console.warn(
+            "[Drive] Logo via API falhou, tentando modo público:",
+            error
+          );
         }
       }
 

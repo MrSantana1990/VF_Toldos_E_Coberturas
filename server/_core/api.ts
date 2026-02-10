@@ -30,4 +30,3 @@ export function registerApiRoutes(app: Express, opts: ApiRoutesOptions = {}) {
     })
   );
 }
-

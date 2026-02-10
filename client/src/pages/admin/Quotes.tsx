@@ -1,13 +1,25 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   buildAdminQuoteWhatsAppText,
   buildQuoteWhatsAppText,
@@ -94,7 +106,9 @@ export default function Quotes() {
       <Card>
         <CardHeader>
           <CardTitle>Lista de Orçamentos Recebidos</CardTitle>
-          <CardDescription>Todos os orçamentos solicitados pelos clientes</CardDescription>
+          <CardDescription>
+            Todos os orçamentos solicitados pelos clientes
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -106,24 +120,41 @@ export default function Quotes() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border">
                   <tr>
-                    <th className="text-left py-3 px-4 font-semibold">Cliente</th>
+                    <th className="text-left py-3 px-4 font-semibold">
+                      Cliente
+                    </th>
                     <th className="text-left py-3 px-4 font-semibold">Email</th>
-                    <th className="text-left py-3 px-4 font-semibold">Telefone</th>
+                    <th className="text-left py-3 px-4 font-semibold">
+                      Telefone
+                    </th>
                     <th className="text-left py-3 px-4 font-semibold">Tipo</th>
-                    <th className="text-left py-3 px-4 font-semibold">Medidas</th>
-                    <th className="text-left py-3 px-4 font-semibold">Área (m²)</th>
-                    <th className="text-left py-3 px-4 font-semibold">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold">
+                      Medidas
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold">
+                      Área (m²)
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold">
+                      Status
+                    </th>
                     <th className="text-left py-3 px-4 font-semibold">Data</th>
                     <th className="text-left py-3 px-4 font-semibold">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {quotes.map((quote) => (
-                    <tr key={quote.id} className="border-b border-border hover:bg-muted/50">
+                  {quotes.map(quote => (
+                    <tr
+                      key={quote.id}
+                      className="border-b border-border hover:bg-muted/50"
+                    >
                       <td className="py-3 px-4">{quote.clientName}</td>
-                      <td className="py-3 px-4 text-foreground/70">{quote.clientEmail}</td>
+                      <td className="py-3 px-4 text-foreground/70">
+                        {quote.clientEmail}
+                      </td>
                       <td className="py-3 px-4">{quote.clientPhone}</td>
-                      <td className="py-3 px-4 capitalize">{quote.toldoType}</td>
+                      <td className="py-3 px-4 capitalize">
+                        {quote.toldoType}
+                      </td>
                       <td className="py-3 px-4">
                         {quote.width} x {quote.projection}m
                       </td>
@@ -135,7 +166,7 @@ export default function Quotes() {
                           </Badge>
                           <Select
                             value={quote.status}
-                            onValueChange={(value) =>
+                            onValueChange={value =>
                               updateStatusMutation.mutate({
                                 id: quote.id,
                                 status: value as any,
@@ -147,8 +178,12 @@ export default function Quotes() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="pending">Pendente</SelectItem>
-                              <SelectItem value="completed">Concluído</SelectItem>
-                              <SelectItem value="rejected">Rejeitado</SelectItem>
+                              <SelectItem value="completed">
+                                Concluído
+                              </SelectItem>
+                              <SelectItem value="rejected">
+                                Rejeitado
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -196,7 +231,9 @@ export default function Quotes() {
                             onClick={() => {
                               const phone = getCompanyWhatsAppPhone();
                               if (!phone) {
-                                toast.error("WhatsApp da empresa não configurado.");
+                                toast.error(
+                                  "WhatsApp da empresa não configurado."
+                                );
                                 return;
                               }
                               const text = buildAdminQuoteWhatsAppText(quote);
@@ -217,7 +254,11 @@ export default function Quotes() {
                                 if (!phone) return;
                                 const text = buildAdminQuoteWhatsAppText(quote);
                                 const url = buildWhatsAppUrl(phone, text);
-                                window.open(url, "_blank", "noopener,noreferrer");
+                                window.open(
+                                  url,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                );
                               }}
                             >
                               Cópia dev

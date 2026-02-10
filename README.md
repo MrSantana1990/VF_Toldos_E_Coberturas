@@ -9,13 +9,13 @@ Aplicação full-stack (Vite + React no front, Express + tRPC no backend) com pe
 
 ## Rodar local
 
-1) Instalar dependências:
+1. Instalar dependências:
 
 `pnpm install`
 
-2) Criar `.env` na raiz (use `.env.example` como base).
+2. Criar `.env` na raiz (use `.env.example` como base).
 
-3) Rodar em desenvolvimento (Vite via middleware no Express):
+3. Rodar em desenvolvimento (Vite via middleware no Express):
 
 `pnpm dev`
 

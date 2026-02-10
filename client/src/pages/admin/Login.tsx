@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -49,7 +55,7 @@ export default function AdminLogin() {
                   id="username"
                   autoComplete="username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={e => setUsername(e.target.value)}
                   placeholder="admin"
                   required
                 />
@@ -62,13 +68,17 @@ export default function AdminLogin() {
                   type="password"
                   autoComplete="current-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loginMutation.isPending}
+              >
                 {loginMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -79,7 +89,12 @@ export default function AdminLogin() {
                 )}
               </Button>
 
-              <Button type="button" variant="ghost" className="w-full" onClick={() => setLocation("/")}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setLocation("/")}
+              >
                 Voltar para o site
               </Button>
             </form>
@@ -89,4 +104,3 @@ export default function AdminLogin() {
     </div>
   );
 }
-

@@ -11,7 +11,11 @@ const _publicFolderCheckCache = new Map<
 >();
 const _publicFolderListCache = new Map<
   string,
-  { checkedAtMs: number; items: DriveImageItem[]; status: { ok: boolean; status: number; error?: string } }
+  {
+    checkedAtMs: number;
+    items: DriveImageItem[];
+    status: { ok: boolean; status: number; error?: string };
+  }
 >();
 
 function normalizePrivateKey(key: string): string {
@@ -108,7 +112,9 @@ function tryParseServiceAccountJson(
         ? parsed.client_email.trim()
         : undefined;
     const privateKey =
-      typeof parsed.private_key === "string" ? parsed.private_key.trim() : undefined;
+      typeof parsed.private_key === "string"
+        ? parsed.private_key.trim()
+        : undefined;
     return { email, privateKey };
   } catch {
     return null;
@@ -268,7 +274,10 @@ function slugify(value: string) {
 }
 
 export async function saveQuoteToDrive(quote: DriveQuote) {
-  requireFolderId(ENV.googleDriveQuotesFolderId, "GOOGLE_DRIVE_QUOTES_FOLDER_ID");
+  requireFolderId(
+    ENV.googleDriveQuotesFolderId,
+    "GOOGLE_DRIVE_QUOTES_FOLDER_ID"
+  );
 
   const drive = getDrive();
   const safeName = slugify(quote.clientName || "cliente");
@@ -291,7 +300,10 @@ export async function saveQuoteToDrive(quote: DriveQuote) {
 }
 
 export async function listQuotesFromDrive(limit = 100): Promise<DriveQuote[]> {
-  requireFolderId(ENV.googleDriveQuotesFolderId, "GOOGLE_DRIVE_QUOTES_FOLDER_ID");
+  requireFolderId(
+    ENV.googleDriveQuotesFolderId,
+    "GOOGLE_DRIVE_QUOTES_FOLDER_ID"
+  );
 
   const drive = getDrive();
   const list = await drive.files.list({
@@ -329,7 +341,11 @@ export async function listQuotesFromDrive(limit = 100): Promise<DriveQuote[]> {
         });
       }
     } catch (error) {
-      console.warn("[Drive] Falha ao ler arquivo de orçamento:", file.name, error);
+      console.warn(
+        "[Drive] Falha ao ler arquivo de orçamento:",
+        file.name,
+        error
+      );
     }
   }
 
@@ -340,7 +356,10 @@ export async function updateQuoteStatusInDrive(
   quoteId: number,
   status: "pending" | "completed" | "rejected"
 ) {
-  requireFolderId(ENV.googleDriveQuotesFolderId, "GOOGLE_DRIVE_QUOTES_FOLDER_ID");
+  requireFolderId(
+    ENV.googleDriveQuotesFolderId,
+    "GOOGLE_DRIVE_QUOTES_FOLDER_ID"
+  );
 
   const drive = getDrive();
   const prefix = `orcamento-${quoteId}-`;
@@ -353,7 +372,9 @@ export async function updateQuoteStatusInDrive(
 
   const file = (list.data.files ?? []).find(f => f.id);
   if (!file?.id) {
-    throw new Error(`Arquivo de orçamento não encontrado no Drive (id=${quoteId}).`);
+    throw new Error(
+      `Arquivo de orçamento não encontrado no Drive (id=${quoteId}).`
+    );
   }
 
   const content = await drive.files.get(
@@ -411,7 +432,9 @@ function parseImageOrderV2(fileName: string): number {
   if (leading) return parseInt(leading[1]!, 10);
 
   // Also accept patterns like "img_1.jpg", "img-002.png", "imagem 12.webp"
-  const img = fileName.match(/(?:^|[^\w])(img|imagem)[\s._-]*0*(\d{1,6})(?:[\s._-]|$)/i);
+  const img = fileName.match(
+    /(?:^|[^\w])(img|imagem)[\s._-]*0*(\d{1,6})(?:[\s._-]|$)/i
+  );
   if (img) return parseInt(img[2]!, 10);
 
   return Number.MAX_SAFE_INTEGER;
@@ -424,7 +447,10 @@ function parseImageTitleV2(fileName: string): string {
   const noLeadingOrder = base.replace(/^(\d{1,6})[\s._-]+/, "");
 
   // Remove "img_1", "img-001", "imagem 12" prefix when the filename is just that
-  const noImgPrefix = noLeadingOrder.replace(/^(img|imagem)[\s._-]*0*\d{1,6}[\s._-]*/i, "");
+  const noImgPrefix = noLeadingOrder.replace(
+    /^(img|imagem)[\s._-]*0*\d{1,6}[\s._-]*/i,
+    ""
+  );
 
   const cleaned = noImgPrefix.replace(/[_-]+/g, " ").trim();
 
@@ -437,8 +463,13 @@ function parseImageTitleV2(fileName: string): string {
   return noLeadingOrder.replace(/[_-]+/g, " ").trim() || base;
 }
 
-export async function listImagesFromDrive(limit = 200): Promise<DriveImageItem[]> {
-  requireFolderId(ENV.googleDriveImagesFolderId, "GOOGLE_DRIVE_IMAGES_FOLDER_ID");
+export async function listImagesFromDrive(
+  limit = 200
+): Promise<DriveImageItem[]> {
+  requireFolderId(
+    ENV.googleDriveImagesFolderId,
+    "GOOGLE_DRIVE_IMAGES_FOLDER_ID"
+  );
 
   const drive = getDrive();
   const list = await drive.files.list({
@@ -498,7 +529,10 @@ export async function listImagesFromPublicDriveFolder(
   folderId: string,
   limit = 200,
   cacheTtlMs = 60_000
-): Promise<{ items: DriveImageItem[]; status: { ok: boolean; status: number; error?: string } }> {
+): Promise<{
+  items: DriveImageItem[];
+  status: { ok: boolean; status: number; error?: string };
+}> {
   const cached = _publicFolderListCache.get(folderId);
   const now = Date.now();
   if (cached && now - cached.checkedAtMs < cacheTtlMs) {
@@ -526,7 +560,11 @@ export async function listImagesFromPublicDriveFolder(
 
     if (!ok) {
       const result = { items: [] as DriveImageItem[], status: { ok, status } };
-      _publicFolderListCache.set(folderId, { checkedAtMs: now, items: result.items, status: result.status });
+      _publicFolderListCache.set(folderId, {
+        checkedAtMs: now,
+        items: result.items,
+        status: result.status,
+      });
       return result;
     }
 
@@ -577,14 +615,22 @@ export async function listImagesFromPublicDriveFolder(
     const limited = items.slice(0, Math.min(Math.max(limit, 1), 500));
 
     const result = { items: limited, status: { ok: true, status } };
-    _publicFolderListCache.set(folderId, { checkedAtMs: now, items: result.items, status: result.status });
+    _publicFolderListCache.set(folderId, {
+      checkedAtMs: now,
+      items: result.items,
+      status: result.status,
+    });
     return result;
   } catch (error) {
     const result = {
       items: [] as DriveImageItem[],
       status: { ok: false, status: 0, error: String(error) },
     };
-    _publicFolderListCache.set(folderId, { checkedAtMs: now, items: result.items, status: result.status });
+    _publicFolderListCache.set(folderId, {
+      checkedAtMs: now,
+      items: result.items,
+      status: result.status,
+    });
     return result;
   }
 }
