@@ -19,6 +19,14 @@ import {
   listQuotesFromDrive,
   updateQuoteStatusInDrive,
   saveQuoteToDrive,
+  listAppointmentsFromDrive,
+  saveAppointmentToDrive,
+  updateAppointmentStatusInDrive,
+  listTransactionsFromDrive,
+  saveTransactionToDrive,
+  listReceiptsFromDrive,
+  saveReceiptToDrive,
+  getReceiptFromDriveById,
   type DriveQuote,
 } from "./drive";
 import { z } from "zod";
@@ -73,6 +81,114 @@ function toQuoteDto(input: any): QuoteDto {
     updatedAt: toIso(input.updatedAt),
     source:
       input.source ?? (input.driveFileId || input.fileId ? "drive" : "db"),
+    driveFileId: input.driveFileId ?? input.fileId ?? null,
+    driveFileName: input.driveFileName ?? input.fileName ?? null,
+  };
+}
+
+type AppointmentDto = {
+  id: string | number;
+  quoteId?: number | null;
+  clientName: string;
+  clientPhone: string;
+  appointmentDate: string;
+  appointmentType: "visita_tecnica" | "instalacao" | "manutencao";
+  address?: string | null;
+  description?: string | null;
+  status: "agendado" | "concluido" | "cancelado";
+  createdAt: string;
+  updatedAt: string;
+  source?: "db" | "drive";
+  driveFileId?: string | null;
+  driveFileName?: string | null;
+};
+
+function toAppointmentDto(input: any): AppointmentDto {
+  return {
+    id: input.id,
+    quoteId: input.quoteId ?? null,
+    clientName: input.clientName,
+    clientPhone: input.clientPhone,
+    appointmentDate: toIso(input.appointmentDate),
+    appointmentType: input.appointmentType,
+    address: input.address ?? null,
+    description: input.description ?? null,
+    status: input.status ?? "agendado",
+    createdAt: toIso(input.createdAt),
+    updatedAt: toIso(input.updatedAt),
+    source: input.source ?? (input.fileId ? "drive" : "db"),
+    driveFileId: input.driveFileId ?? input.fileId ?? null,
+    driveFileName: input.driveFileName ?? input.fileName ?? null,
+  };
+}
+
+type TransactionDto = {
+  id: string | number;
+  type: "entrada" | "saida";
+  category: string;
+  description: string | null;
+  amount: string;
+  transactionDate: string;
+  paymentMethod?: string | null;
+  relatedQuoteId?: number | null;
+  relatedReceiptId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  source?: "db" | "drive";
+  driveFileId?: string | null;
+  driveFileName?: string | null;
+};
+
+function toTransactionDto(input: any): TransactionDto {
+  return {
+    id: input.id,
+    type: input.type,
+    category: input.category,
+    description: input.description ?? null,
+    amount: String(input.amount),
+    transactionDate: toIso(input.transactionDate),
+    paymentMethod: input.paymentMethod ?? null,
+    relatedQuoteId: input.relatedQuoteId ?? null,
+    relatedReceiptId: input.relatedReceiptId ?? null,
+    createdAt: toIso(input.createdAt),
+    updatedAt: toIso(input.updatedAt),
+    source: input.source ?? (input.fileId ? "drive" : "db"),
+    driveFileId: input.driveFileId ?? input.fileId ?? null,
+    driveFileName: input.driveFileName ?? input.fileName ?? null,
+  };
+}
+
+type ReceiptDto = {
+  id: string;
+  relatedQuoteId?: number | null;
+  clientName: string;
+  clientEmail?: string | null;
+  clientPhone: string;
+  serviceDescription: string;
+  amount: string;
+  paymentMethod?: string | null;
+  notes?: string | null;
+  issuedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  driveFileId?: string | null;
+  driveFileName?: string | null;
+};
+
+function toReceiptDto(input: any): ReceiptDto {
+  return {
+    id: String(input.id),
+    relatedQuoteId: input.relatedQuoteId ?? null,
+    clientName: input.clientName,
+    clientEmail: input.clientEmail ?? null,
+    clientPhone: input.clientPhone,
+    serviceDescription: input.serviceDescription,
+    amount: String(input.amount),
+    paymentMethod: input.paymentMethod ?? null,
+    notes: input.notes ?? null,
+    issuedAt: toIso(input.issuedAt),
+    createdAt: toIso(input.createdAt),
+    updatedAt: toIso(input.updatedAt),
     driveFileId: input.driveFileId ?? input.fileId ?? null,
     driveFileName: input.driveFileName ?? input.fileName ?? null,
   };
@@ -482,14 +598,211 @@ export const appRouter = router({
     }),
   }),
   appointments: router({
-    list: protectedProcedure.query(async () => {
-      return db.getAppointments();
+    list: adminProcedure.query(async () => {
+      if (ENV.databaseUrl) {
+        const items = await db.getAppointments();
+        return items.map(toAppointmentDto);
+      }
+      if (!isDriveConfigured()) {
+        throw new Error(
+          "Sem banco (DATABASE_URL) e sem Google Drive configurado para listar agendamentos."
+        );
+      }
+      const items = await listAppointmentsFromDrive(200);
+      return items.map(toAppointmentDto);
     }),
+    create: adminProcedure
+      .input(
+        z.object({
+          quoteId: z.number().nullable().optional(),
+          clientName: z.string().min(1),
+          clientPhone: z.string().min(1),
+          appointmentDate: z.string().min(1),
+          appointmentType: z.enum([
+            "visita_tecnica",
+            "instalacao",
+            "manutencao",
+          ]),
+          address: z.string().optional(),
+          description: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (ENV.databaseUrl) {
+          await db.createAppointment({
+            quoteId: input.quoteId ?? null,
+            clientName: input.clientName,
+            clientPhone: input.clientPhone,
+            appointmentDate: new Date(input.appointmentDate),
+            appointmentType: input.appointmentType,
+            description: input.description ?? null,
+            status: "agendado",
+          });
+          return { ok: true };
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error(
+            "Google Drive não configurado para salvar agendamentos."
+          );
+        }
+
+        const created = await saveAppointmentToDrive({
+          quoteId: input.quoteId ?? null,
+          clientName: input.clientName,
+          clientPhone: input.clientPhone,
+          appointmentDate: input.appointmentDate,
+          appointmentType: input.appointmentType,
+          address: input.address ?? null,
+          description: input.description ?? null,
+          status: "agendado",
+        });
+        return toAppointmentDto(created);
+      }),
+    updateStatus: adminProcedure
+      .input(
+        z.object({
+          id: z.union([z.string().min(1), z.number()]),
+          status: z.enum(["agendado", "concluido", "cancelado"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (ENV.databaseUrl) {
+          const id = Number(input.id);
+          if (!Number.isFinite(id)) throw new Error("ID inválido.");
+          await db.updateAppointmentStatus(id, input.status);
+          return { ok: true };
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error(
+            "Google Drive não configurado para atualizar agendamentos."
+          );
+        }
+
+        await updateAppointmentStatusInDrive(String(input.id), input.status);
+        return { ok: true };
+      }),
+  }),
+  receipts: router({
+    list: adminProcedure.query(async () => {
+      if (!isDriveConfigured()) {
+        throw new Error("Google Drive não configurado para listar recibos.");
+      }
+      const items = await listReceiptsFromDrive(200);
+      return items.map(toReceiptDto);
+    }),
+    create: adminProcedure
+      .input(
+        z.object({
+          relatedQuoteId: z.number().nullable().optional(),
+          clientName: z.string().min(1),
+          clientEmail: z.string().email().optional(),
+          clientPhone: z.string().min(1),
+          serviceDescription: z.string().min(1),
+          amount: z.union([z.string().min(1), z.number()]),
+          paymentMethod: z.string().optional(),
+          notes: z.string().optional(),
+          issuedAt: z.string().optional(),
+          createTransaction: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para salvar recibos.");
+        }
+
+        const receipt = await saveReceiptToDrive({
+          relatedQuoteId: input.relatedQuoteId ?? null,
+          clientName: input.clientName,
+          clientEmail: input.clientEmail ?? null,
+          clientPhone: input.clientPhone,
+          serviceDescription: input.serviceDescription,
+          amount: String(input.amount),
+          paymentMethod: input.paymentMethod ?? null,
+          notes: input.notes ?? null,
+          issuedAt: input.issuedAt ?? new Date().toISOString(),
+        });
+
+        if (input.createTransaction !== false) {
+          await saveTransactionToDrive({
+            type: "entrada",
+            category: "Recibo",
+            description: `Recibo ${receipt.id} - ${receipt.clientName}`,
+            amount: receipt.amount,
+            transactionDate: receipt.issuedAt,
+            paymentMethod: receipt.paymentMethod ?? null,
+            relatedQuoteId: receipt.relatedQuoteId ?? null,
+            relatedReceiptId: receipt.id,
+          });
+        }
+
+        return toReceiptDto(receipt);
+      }),
+    publicGet: publicProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .query(async ({ input }) => {
+        if (!isDriveConfigured()) {
+          throw new Error(
+            "Google Drive não configurado para consultar recibos."
+          );
+        }
+        const found = await getReceiptFromDriveById(input.id);
+        return found ? toReceiptDto(found) : null;
+      }),
   }),
   transactions: router({
-    list: protectedProcedure.query(async () => {
-      return db.getTransactions();
+    list: adminProcedure.query(async () => {
+      if (ENV.databaseUrl) {
+        const items = await db.getTransactions();
+        return items.map(toTransactionDto);
+      }
+      if (!isDriveConfigured()) {
+        throw new Error(
+          "Sem banco (DATABASE_URL) e sem Google Drive configurado para listar finanças."
+        );
+      }
+      const items = await listTransactionsFromDrive(300);
+      return items.map(toTransactionDto);
     }),
+    create: adminProcedure
+      .input(
+        z.object({
+          type: z.enum(["entrada", "saida"]),
+          category: z.string().min(1),
+          description: z.string().optional(),
+          amount: z.union([z.string().min(1), z.number()]),
+          transactionDate: z.string().optional(),
+          paymentMethod: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (ENV.databaseUrl) {
+          await db.createTransaction({
+            type: input.type,
+            category: input.category,
+            description: input.description ?? null,
+            amount: String(input.amount) as any,
+            transactionDate: new Date(input.transactionDate ?? Date.now()),
+            paymentMethod: input.paymentMethod ?? null,
+          });
+          return { ok: true };
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para salvar finanças.");
+        }
+
+        const created = await saveTransactionToDrive({
+          type: input.type,
+          category: input.category,
+          description: input.description ?? null,
+          amount: String(input.amount),
+          transactionDate: input.transactionDate ?? new Date().toISOString(),
+          paymentMethod: input.paymentMethod ?? null,
+        });
+        return toTransactionDto(created);
+      }),
   }),
 });
 

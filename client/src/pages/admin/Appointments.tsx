@@ -12,10 +12,40 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { buildWhatsAppUrl, toWhatsAppPhone } from "@/lib/whatsapp";
 
 export default function Appointments() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [appointmentType, setAppointmentType] = useState<
+    "visita_tecnica" | "instalacao" | "manutencao"
+  >("visita_tecnica");
+  const [appointmentDate, setAppointmentDate] = useState("");
+  const [address, setAddress] = useState("");
+  const [description, setDescription] = useState("");
 
   const { data: appointments, isLoading } = trpc.appointments.list.useQuery(
     undefined,
@@ -23,6 +53,33 @@ export default function Appointments() {
       enabled: isAuthenticated,
     }
   );
+
+  const createMutation = trpc.appointments.create.useMutation({
+    onSuccess: async () => {
+      toast.success("Agendamento criado.");
+      setDialogOpen(false);
+      setClientName("");
+      setClientPhone("");
+      setAppointmentType("visita_tecnica");
+      setAppointmentDate("");
+      setAddress("");
+      setDescription("");
+      await utils.appointments.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao criar agendamento.");
+    },
+  });
+
+  const updateStatusMutation = trpc.appointments.updateStatus.useMutation({
+    onSuccess: async () => {
+      toast.success("Status atualizado.");
+      await utils.appointments.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao atualizar status.");
+    },
+  });
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -68,6 +125,17 @@ export default function Appointments() {
     }
   };
 
+  function buildNewReceiptUrlFromAppointment(apt: any) {
+    const params = new URLSearchParams();
+    params.set("clientName", apt.clientName ?? "");
+    params.set("clientPhone", apt.clientPhone ?? "");
+    params.set(
+      "serviceDescription",
+      `${getTypeLabel(apt.appointmentType)} - ${apt.description || ""}`.trim()
+    );
+    return `/admin/receipts/new?${params.toString()}`;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -84,6 +152,7 @@ export default function Appointments() {
             Agenda de Agendamentos
           </h1>
         </div>
+        <Button onClick={() => setDialogOpen(true)}>Novo agendamento</Button>
       </div>
 
       <Card>
@@ -113,6 +182,11 @@ export default function Appointments() {
                       <p className="text-sm text-foreground/70">
                         {apt.clientPhone}
                       </p>
+                      {apt.address ? (
+                        <p className="text-sm text-foreground/70 mt-1">
+                          {apt.address}
+                        </p>
+                      ) : null}
                       <p className="text-sm text-foreground/70 mt-1">
                         {apt.description}
                       </p>
@@ -134,6 +208,69 @@ export default function Appointments() {
                         {new Date(apt.appointmentDate).toLocaleString("pt-BR")}
                       </span>
                     </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Select
+                        value={apt.status}
+                        onValueChange={value =>
+                          updateStatusMutation.mutate({
+                            id: apt.id,
+                            status: value as any,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-[150px]">
+                          <SelectValue placeholder="Alterar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="agendado">Agendado</SelectItem>
+                          <SelectItem value="concluido">Concluído</SelectItem>
+                          <SelectItem value="cancelado">Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const phone = toWhatsAppPhone(apt.clientPhone);
+                          if (!phone) {
+                            toast.error("Telefone do cliente inválido.");
+                            return;
+                          }
+                          const text = [
+                            `Olá ${apt.clientName}!`,
+                            "",
+                            "Confirmando seu agendamento:",
+                            `Tipo: ${getTypeLabel(apt.appointmentType)}`,
+                            `Data/Hora: ${new Date(
+                              apt.appointmentDate
+                            ).toLocaleString("pt-BR")}`,
+                            apt.address ? `Endereço: ${apt.address}` : null,
+                            apt.description ? `Obs.: ${apt.description}` : null,
+                            "",
+                            "VF Toldos & Coberturas",
+                          ]
+                            .filter(Boolean)
+                            .join("\n");
+                          const url = buildWhatsAppUrl(phone, text);
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        WhatsApp
+                      </Button>
+
+                      {apt.status === "concluido" ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            setLocation(buildNewReceiptUrlFromAppointment(apt))
+                          }
+                        >
+                          Emitir recibo
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -145,6 +282,128 @@ export default function Appointments() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo agendamento</DialogTitle>
+            <DialogDescription>
+              Crie uma visita técnica, instalação ou manutenção.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="grid gap-4"
+            onSubmit={e => {
+              e.preventDefault();
+              if (!clientName.trim()) {
+                toast.error("Informe o nome do cliente.");
+                return;
+              }
+              if (!clientPhone.trim()) {
+                toast.error("Informe o telefone do cliente.");
+                return;
+              }
+              if (!appointmentDate) {
+                toast.error("Informe a data e hora.");
+                return;
+              }
+
+              createMutation.mutate({
+                clientName,
+                clientPhone,
+                appointmentType,
+                appointmentDate: new Date(appointmentDate).toISOString(),
+                address: address || undefined,
+                description: description || undefined,
+              });
+            }}
+          >
+            <div className="grid gap-2">
+              <Label>Cliente</Label>
+              <Input
+                value={clientName}
+                onChange={e => setClientName(e.target.value)}
+                placeholder="Nome do cliente"
+              />
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Telefone</Label>
+                <Input
+                  value={clientPhone}
+                  onChange={e => setClientPhone(e.target.value)}
+                  placeholder="(99) 99999-9999"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Data e hora</Label>
+                <Input
+                  type="datetime-local"
+                  value={appointmentDate}
+                  onChange={e => setAppointmentDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Tipo</Label>
+              <Select
+                value={appointmentType}
+                onValueChange={value => setAppointmentType(value as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visita_tecnica">Visita técnica</SelectItem>
+                  <SelectItem value="instalacao">Instalação</SelectItem>
+                  <SelectItem value="manutencao">Manutenção</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Endereço (opcional)</Label>
+              <Input
+                value={address}
+                onChange={e => setAddress(e.target.value)}
+                placeholder="Rua, número, bairro..."
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Descrição/observações (opcional)</Label>
+              <Textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Ex.: medir largura/altura, fotos, portão..."
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  "Criar"
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

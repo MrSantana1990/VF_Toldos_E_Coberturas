@@ -29,6 +29,30 @@ import {
   toWhatsAppPhone,
 } from "@/lib/whatsapp";
 
+function buildThanksWhatsAppText(quote: any) {
+  return [
+    `Olá ${quote.clientName}!`,
+    "",
+    "Seu atendimento foi concluído ✅",
+    "Obrigado pela preferência.",
+    "",
+    "VF Toldos & Coberturas",
+  ].join("\n");
+}
+
+function buildReceiptNewUrlFromQuote(quote: any) {
+  const params = new URLSearchParams();
+  params.set("quoteId", String(quote.id));
+  params.set("clientName", quote.clientName ?? "");
+  params.set("clientEmail", quote.clientEmail ?? "");
+  params.set("clientPhone", quote.clientPhone ?? "");
+  params.set(
+    "serviceDescription",
+    `Serviço relacionado ao orçamento #${quote.id}`
+  );
+  return `/admin/receipts/new?${params.toString()}`;
+}
+
 export default function Quotes() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
@@ -264,6 +288,35 @@ export default function Quotes() {
                               Cópia dev
                             </Button>
                           ) : null}
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() =>
+                              setLocation(buildReceiptNewUrlFromQuote(quote))
+                            }
+                          >
+                            Emitir recibo
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const phone = toWhatsAppPhone(quote.clientPhone);
+                              if (!phone) {
+                                toast.error("Telefone do cliente inválido.");
+                                return;
+                              }
+                              const text = buildThanksWhatsAppText(quote);
+                              const url = buildWhatsAppUrl(phone, text);
+                              window.open(url, "_blank", "noopener,noreferrer");
+                            }}
+                          >
+                            Agradecer
+                          </Button>
 
                           {"driveFileId" in quote && quote.driveFileId ? (
                             <a

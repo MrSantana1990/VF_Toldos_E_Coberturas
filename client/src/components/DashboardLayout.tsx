@@ -29,6 +29,7 @@ import {
   LayoutDashboard,
   LogOut,
   PanelLeft,
+  Receipt,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +40,7 @@ import { toast } from "sonner";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
   { icon: FileText, label: "Orçamentos", path: "/admin/quotes" },
+  { icon: Receipt, label: "Recibos", path: "/admin/receipts" },
   { icon: Calendar, label: "Agenda", path: "/admin/appointments" },
   { icon: DollarSign, label: "Finanças", path: "/admin/finances" },
 ];

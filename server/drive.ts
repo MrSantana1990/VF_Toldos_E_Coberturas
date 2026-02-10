@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { ENV } from "./_core/env";
 import { createPrivateKey } from "node:crypto";
+import { nanoid } from "nanoid";
 
 type DriveClient = ReturnType<typeof google.drive>;
 
@@ -398,6 +399,342 @@ export async function updateQuoteStatusInDrive(
       body: JSON.stringify(updated, null, 2),
     },
   });
+}
+
+function getAdminDataFolderId() {
+  return ENV.googleDriveAdminFolderId || ENV.googleDriveQuotesFolderId;
+}
+
+function requireAdminDataFolderId() {
+  requireFolderId(
+    getAdminDataFolderId(),
+    "GOOGLE_DRIVE_ADMIN_FOLDER_ID (ou GOOGLE_DRIVE_QUOTES_FOLDER_ID)"
+  );
+}
+
+type DriveJsonMeta = {
+  fileId?: string;
+  fileName?: string;
+};
+
+export type DriveAppointment = {
+  id: string;
+  quoteId?: number | null;
+  clientName: string;
+  clientPhone: string;
+  appointmentDate: string; // ISO
+  appointmentType: "visita_tecnica" | "instalacao" | "manutencao";
+  address?: string | null;
+  description?: string | null;
+  status: "agendado" | "concluido" | "cancelado";
+  createdAt: string;
+  updatedAt: string;
+} & DriveJsonMeta;
+
+export type DriveTransaction = {
+  id: string;
+  type: "entrada" | "saida";
+  category: string;
+  description?: string | null;
+  amount: string; // decimal string
+  transactionDate: string; // ISO
+  paymentMethod?: string | null;
+  relatedQuoteId?: number | null;
+  relatedReceiptId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+} & DriveJsonMeta;
+
+export type DriveReceipt = {
+  id: string;
+  relatedQuoteId?: number | null;
+  clientName: string;
+  clientEmail?: string | null;
+  clientPhone: string;
+  serviceDescription: string;
+  amount: string; // decimal string
+  paymentMethod?: string | null;
+  notes?: string | null;
+  issuedAt: string; // ISO
+  createdAt: string;
+  updatedAt: string;
+} & DriveJsonMeta;
+
+function toIso(value: unknown) {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return new Date(value).toISOString();
+  if (typeof value === "number") return new Date(value).toISOString();
+  return new Date().toISOString();
+}
+
+function parseDrivePayload<T>(payload: any): T | null {
+  if (!payload) return null;
+  if (payload.version === 1 && typeof payload.kind === "string") {
+    const { version: _v, kind: _k, ...rest } = payload as any;
+    return rest as T;
+  }
+  return payload as T;
+}
+
+async function createJsonFileInAdminFolder(
+  fileName: string,
+  payload: object
+): Promise<{ id?: string; name?: string }> {
+  requireAdminDataFolderId();
+  const drive = getDrive();
+  const folderId = getAdminDataFolderId();
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [folderId],
+      mimeType: "application/json",
+    },
+    media: {
+      mimeType: "application/json",
+      body: JSON.stringify(payload, null, 2),
+    },
+    fields: "id,name",
+  });
+
+  return {
+    id: response.data.id ?? undefined,
+    name: response.data.name ?? undefined,
+  };
+}
+
+async function listJsonFilesFromAdminFolder(
+  nameContains: string,
+  limit = 100
+): Promise<Array<{ id: string; name?: string }>> {
+  requireAdminDataFolderId();
+  const drive = getDrive();
+  const folderId = getAdminDataFolderId();
+
+  const list = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and mimeType = 'application/json' and name contains '${nameContains}'`,
+    fields: "files(id,name,createdTime,modifiedTime)",
+    orderBy: "createdTime desc",
+    pageSize: Math.min(Math.max(limit, 1), 200),
+  });
+
+  return (list.data.files ?? []).filter(
+    (f): f is { id: string; name?: string } => Boolean(f.id)
+  );
+}
+
+async function readJsonFile<T>(
+  fileId: string
+): Promise<{ payload: T | null; raw: any }> {
+  const drive = getDrive();
+  const content = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "json" }
+  );
+  const raw = content.data as any;
+  return { payload: parseDrivePayload<T>(raw), raw };
+}
+
+async function updateJsonFile(fileId: string, payload: object) {
+  const drive = getDrive();
+  await drive.files.update({
+    fileId,
+    media: {
+      mimeType: "application/json",
+      body: JSON.stringify(payload, null, 2),
+    },
+  });
+}
+
+export async function saveAppointmentToDrive(
+  input: Omit<DriveAppointment, "id" | "createdAt" | "updatedAt">
+) {
+  const nowIso = new Date().toISOString();
+  const appointment: DriveAppointment = {
+    id: nanoid(12),
+    ...input,
+    appointmentDate: toIso(input.appointmentDate),
+    status: input.status ?? "agendado",
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  const safeName = slugify(appointment.clientName || "cliente");
+  const fileName = `agendamento-${appointment.id}-${safeName}.json`;
+  const created = await createJsonFileInAdminFolder(fileName, {
+    version: 1,
+    kind: "appointment",
+    ...appointment,
+  });
+
+  return {
+    ...appointment,
+    fileId: created.id,
+    fileName: created.name ?? fileName,
+  };
+}
+
+export async function listAppointmentsFromDrive(
+  limit = 100
+): Promise<DriveAppointment[]> {
+  const files = await listJsonFilesFromAdminFolder("agendamento-", limit);
+
+  const results: DriveAppointment[] = [];
+  for (const file of files) {
+    try {
+      const { payload } = await readJsonFile<DriveAppointment>(file.id);
+      if (!payload) continue;
+      results.push({
+        ...payload,
+        fileId: file.id,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.warn("[Drive] Falha ao ler agendamento:", file.name, error);
+    }
+  }
+  return results;
+}
+
+export async function updateAppointmentStatusInDrive(
+  appointmentId: string,
+  status: DriveAppointment["status"]
+) {
+  const prefix = `agendamento-${appointmentId}-`;
+  const files = await listJsonFilesFromAdminFolder(prefix, 5);
+  const file = files.find(f => f.id);
+  if (!file?.id) {
+    throw new Error(
+      `Agendamento não encontrado no Drive (id=${appointmentId}).`
+    );
+  }
+
+  const { raw } = await readJsonFile<any>(file.id);
+  const nowIso = new Date().toISOString();
+
+  const updated =
+    raw?.version === 1
+      ? { ...raw, status, updatedAt: nowIso }
+      : {
+          version: 1,
+          kind: "appointment",
+          ...(raw as object),
+          status,
+          updatedAt: nowIso,
+        };
+
+  await updateJsonFile(file.id, updated);
+}
+
+export async function saveTransactionToDrive(
+  input: Omit<DriveTransaction, "id" | "createdAt" | "updatedAt">
+) {
+  const nowIso = new Date().toISOString();
+  const transaction: DriveTransaction = {
+    id: nanoid(12),
+    ...input,
+    amount: String(input.amount),
+    transactionDate: toIso(input.transactionDate),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  const fileName = `transacao-${transaction.id}.json`;
+  const created = await createJsonFileInAdminFolder(fileName, {
+    version: 1,
+    kind: "transaction",
+    ...transaction,
+  });
+
+  return {
+    ...transaction,
+    fileId: created.id,
+    fileName: created.name ?? fileName,
+  };
+}
+
+export async function listTransactionsFromDrive(
+  limit = 200
+): Promise<DriveTransaction[]> {
+  const files = await listJsonFilesFromAdminFolder("transacao-", limit);
+
+  const results: DriveTransaction[] = [];
+  for (const file of files) {
+    try {
+      const { payload } = await readJsonFile<DriveTransaction>(file.id);
+      if (!payload) continue;
+      results.push({
+        ...payload,
+        fileId: file.id,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.warn("[Drive] Falha ao ler transação:", file.name, error);
+    }
+  }
+  return results;
+}
+
+export async function saveReceiptToDrive(
+  input: Omit<DriveReceipt, "id" | "createdAt" | "updatedAt">
+) {
+  const nowIso = new Date().toISOString();
+  const receipt: DriveReceipt = {
+    id: nanoid(12),
+    ...input,
+    amount: String(input.amount),
+    issuedAt: toIso(input.issuedAt),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  const safeName = slugify(receipt.clientName || "cliente");
+  const fileName = `recibo-${receipt.id}-${safeName}.json`;
+  const created = await createJsonFileInAdminFolder(fileName, {
+    version: 1,
+    kind: "receipt",
+    ...receipt,
+  });
+
+  return {
+    ...receipt,
+    fileId: created.id,
+    fileName: created.name ?? fileName,
+  };
+}
+
+export async function listReceiptsFromDrive(
+  limit = 200
+): Promise<DriveReceipt[]> {
+  const files = await listJsonFilesFromAdminFolder("recibo-", limit);
+  const results: DriveReceipt[] = [];
+  for (const file of files) {
+    try {
+      const { payload } = await readJsonFile<DriveReceipt>(file.id);
+      if (!payload) continue;
+      results.push({
+        ...payload,
+        fileId: file.id,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.warn("[Drive] Falha ao ler recibo:", file.name, error);
+    }
+  }
+  return results;
+}
+
+export async function getReceiptFromDriveById(
+  receiptId: string
+): Promise<DriveReceipt | null> {
+  const prefix = `recibo-${receiptId}-`;
+  const files = await listJsonFilesFromAdminFolder(prefix, 5);
+  const file = files.find(f => f.id);
+  if (!file?.id) return null;
+
+  const { payload } = await readJsonFile<DriveReceipt>(file.id);
+  if (!payload) return null;
+  return { ...payload, fileId: file.id, fileName: file.name };
 }
 
 export type DriveImageItem = {

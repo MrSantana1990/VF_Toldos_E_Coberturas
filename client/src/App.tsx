@@ -7,11 +7,14 @@ import Admin from "@/pages/Admin";
 import AdminQuotes from "@/pages/admin/Quotes";
 import AdminAppointments from "@/pages/admin/Appointments";
 import AdminFinances from "@/pages/admin/Finances";
+import AdminReceipts from "@/pages/admin/Receipts";
+import AdminNewReceipt from "@/pages/admin/NewReceipt";
 import AdminLogin from "@/pages/admin/Login";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import ReceiptPublic from "@/pages/ReceiptPublic";
 
 function AdminQuotesRoute() {
   return (
@@ -37,15 +40,34 @@ function AdminFinancesRoute() {
   );
 }
 
+function AdminReceiptsRoute() {
+  return (
+    <DashboardLayout>
+      <AdminReceipts />
+    </DashboardLayout>
+  );
+}
+
+function AdminNewReceiptRoute() {
+  return (
+    <DashboardLayout>
+      <AdminNewReceipt />
+    </DashboardLayout>
+  );
+}
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/quote" component={Quote} />
+      <Route path="/r/:id" component={ReceiptPublic} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/quotes" component={AdminQuotesRoute} />
+      <Route path="/admin/receipts/new" component={AdminNewReceiptRoute} />
+      <Route path="/admin/receipts" component={AdminReceiptsRoute} />
       <Route path="/admin/appointments" component={AdminAppointmentsRoute} />
       <Route path="/admin/finances" component={AdminFinancesRoute} />
       <Route path="/404" component={NotFound} />

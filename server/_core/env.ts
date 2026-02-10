@@ -21,6 +21,9 @@ export const ENV = {
   googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "",
   googleOAuthRefreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN ?? "",
   googleDriveQuotesFolderId: process.env.GOOGLE_DRIVE_QUOTES_FOLDER_ID ?? "",
+  // Pasta do Drive para dados do painel (agendamentos/recibos/finanças).
+  // Se não definir, usa a mesma pasta de orçamentos.
+  googleDriveAdminFolderId: process.env.GOOGLE_DRIVE_ADMIN_FOLDER_ID ?? "",
   // Pasta pública do Drive (imagens + logo) usada pelo site.
   // Se quiser trocar, defina `GOOGLE_DRIVE_IMAGES_FOLDER_ID` no ambiente (Netlify) ou `.env` local.
   googleDriveImagesFolderId:

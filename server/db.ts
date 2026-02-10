@@ -169,6 +169,15 @@ export async function createAppointment(data: InsertAppointment) {
   return result;
 }
 
+export async function updateAppointmentStatus(
+  id: number,
+  status: "agendado" | "concluido" | "cancelado"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(appointments).set({ status }).where(eq(appointments.id, id));
+}
+
 // Queries para Transações
 export async function getTransactions(limit = 50, offset = 0) {
   const db = await getDb();
