@@ -21,6 +21,11 @@ Aplicação full-stack (Vite + React no front, Express + tRPC no backend) com pe
 
 Abra `http://localhost:3000`.
 
+## Painel administrativo
+
+- URL: `/admin/login`
+- Usuário/senha padrão: `admin` / `admin2026` (você pode sobrescrever com `ADMIN_USERNAME` e `ADMIN_PASSWORD` no ambiente).
+
 ## Build/produção local
 
 `pnpm build`

@@ -17,7 +17,7 @@ export default function Appointments() {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      setLocation("/");
+      setLocation("/admin/login");
     }
   }, [isAuthenticated, loading, setLocation]);
 

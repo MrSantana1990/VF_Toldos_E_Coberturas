@@ -245,6 +245,8 @@ export type DriveQuote = {
   status: "pending" | "completed" | "rejected";
   createdAt: string;
   updatedAt: string;
+  fileId?: string;
+  fileName?: string;
 };
 
 function requireFolderId(folderId: string, envName: string) {
@@ -314,9 +316,17 @@ export async function listQuotesFromDrive(limit = 100): Promise<DriveQuote[]> {
 
       if (payload.version === 1) {
         const { version: _version, ...quote } = payload;
-        results.push(quote as DriveQuote);
+        results.push({
+          ...(quote as DriveQuote),
+          fileId: file.id,
+          fileName: file.name ?? undefined,
+        });
       } else {
-        results.push(payload as DriveQuote);
+        results.push({
+          ...(payload as DriveQuote),
+          fileId: file.id,
+          fileName: file.name ?? undefined,
+        });
       }
     } catch (error) {
       console.warn("[Drive] Falha ao ler arquivo de orçamento:", file.name, error);
@@ -324,6 +334,49 @@ export async function listQuotesFromDrive(limit = 100): Promise<DriveQuote[]> {
   }
 
   return results;
+}
+
+export async function updateQuoteStatusInDrive(
+  quoteId: number,
+  status: "pending" | "completed" | "rejected"
+) {
+  requireFolderId(ENV.googleDriveQuotesFolderId, "GOOGLE_DRIVE_QUOTES_FOLDER_ID");
+
+  const drive = getDrive();
+  const prefix = `orcamento-${quoteId}-`;
+
+  const list = await drive.files.list({
+    q: `'${ENV.googleDriveQuotesFolderId}' in parents and trashed = false and mimeType = 'application/json' and name contains '${prefix}'`,
+    fields: "files(id,name)",
+    pageSize: 5,
+  });
+
+  const file = (list.data.files ?? []).find(f => f.id);
+  if (!file?.id) {
+    throw new Error(`Arquivo de orçamento não encontrado no Drive (id=${quoteId}).`);
+  }
+
+  const content = await drive.files.get(
+    { fileId: file.id, alt: "media" },
+    { responseType: "json" }
+  );
+  const payload = (content.data ?? {}) as any;
+  const nowIso = new Date().toISOString();
+
+  let updated: any;
+  if (payload?.version === 1) {
+    updated = { ...payload, status, updatedAt: nowIso };
+  } else {
+    updated = { version: 1, ...(payload as object), status, updatedAt: nowIso };
+  }
+
+  await drive.files.update({
+    fileId: file.id,
+    media: {
+      mimeType: "application/json",
+      body: JSON.stringify(updated, null, 2),
+    },
+  });
 }
 
 export type DriveImageItem = {

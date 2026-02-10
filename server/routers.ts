@@ -1,7 +1,7 @@
-import { COOKIE_NAME } from "@shared/const";
+import { ADMIN_COOKIE_NAME, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { notifyOwner } from "./_core/notification";
 import { ENV } from "./_core/env";
 import * as db from "./db";
@@ -12,10 +12,13 @@ import {
   listImagesFromPublicDriveFolder,
   listImagesFromDrive,
   listQuotesFromDrive,
+  updateQuoteStatusInDrive,
   saveQuoteToDrive,
   type DriveQuote,
 } from "./drive";
 import { z } from "zod";
+import { timingSafeEqual } from "node:crypto";
+import { SignJWT } from "jose";
 
 type QuoteDto = {
   id: number;
@@ -31,6 +34,9 @@ type QuoteDto = {
   status: "pending" | "completed" | "rejected";
   createdAt: string;
   updatedAt: string;
+  source?: "db" | "drive";
+  driveFileId?: string | null;
+  driveFileName?: string | null;
 };
 
 function toIso(value: unknown): string {
@@ -60,6 +66,9 @@ function toQuoteDto(input: any): QuoteDto {
     status: input.status ?? "pending",
     createdAt: toIso(input.createdAt),
     updatedAt: toIso(input.updatedAt),
+    source: input.source ?? (input.driveFileId || input.fileId ? "drive" : "db"),
+    driveFileId: input.driveFileId ?? input.fileId ?? null,
+    driveFileName: input.driveFileName ?? input.fileName ?? null,
   };
 }
 
@@ -117,9 +126,81 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    login: publicProcedure
+      .input(
+        z.object({
+          username: z.string().min(1),
+          password: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const username = input.username.trim();
+        const password = input.password;
+
+        const expectedUsername = (ENV.adminUsername ?? "admin").trim();
+        const expectedPassword = ENV.adminPassword ?? "admin2026";
+
+        const enc = new TextEncoder();
+        const aUser = enc.encode(username);
+        const bUser = enc.encode(expectedUsername);
+        const aPass = enc.encode(password);
+        const bPass = enc.encode(expectedPassword);
+
+        const userOk =
+          aUser.length === bUser.length && timingSafeEqual(aUser, bUser);
+        const passOk =
+          aPass.length === bPass.length && timingSafeEqual(aPass, bPass);
+
+        if (!userOk || !passOk) {
+          throw new Error("Usuário ou senha inválidos.");
+        }
+
+        if (!ENV.cookieSecret) {
+          throw new Error(
+            "JWT_SECRET não configurado. Defina JWT_SECRET no ambiente para habilitar o login do admin."
+          );
+        }
+
+        const secretKey = enc.encode(ENV.cookieSecret);
+        const expiresInMs = ONE_YEAR_MS;
+        const expirationSeconds = Math.floor((Date.now() + expiresInMs) / 1000);
+
+        const token = await new SignJWT({
+          typ: "admin",
+          role: "admin",
+          openId: "admin-local",
+          name: "Admin",
+          username,
+        })
+          .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+          .setExpirationTime(expirationSeconds)
+          .sign(secretKey);
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(ADMIN_COOKIE_NAME, token, {
+          ...cookieOptions,
+          maxAge: expiresInMs,
+        });
+
+        return {
+          ok: true,
+          user: {
+            id: 0,
+            openId: "admin-local",
+            name: "Admin",
+            email: null,
+            loginMethod: "local",
+            role: "admin",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastSignedIn: new Date(),
+          },
+        } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(ADMIN_COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
         success: true,
       } as const;
@@ -213,13 +294,13 @@ export const appRouter = router({
       const dbConn = await db.getDb();
       if (dbConn) {
         const rows = await db.getQuotes();
-        return rows.map(toQuoteDto);
+        return rows.map(r => toQuoteDto({ ...r, source: "db" }));
       }
 
       if (!isDriveConfigured()) return [];
       try {
         const rows = await listQuotesFromDrive(100);
-        return rows.map(toQuoteDto);
+        return rows.map(r => toQuoteDto({ ...r, source: "drive" }));
       } catch (error) {
         console.warn("[Drive] Orçamentos indisponíveis:", error);
         return [];
@@ -243,6 +324,27 @@ export const appRouter = router({
         return { total: 0, pending: 0, completed: 0 };
       }
     }),
+    updateStatus: adminProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          status: z.enum(["pending", "completed", "rejected"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) {
+          await db.updateQuoteStatus(input.id, input.status);
+          return { success: true } as const;
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para atualizar status.");
+        }
+
+        await updateQuoteStatusInDrive(input.id, input.status);
+        return { success: true } as const;
+      }),
   }),
 
   gallery: router({

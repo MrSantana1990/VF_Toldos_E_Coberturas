@@ -122,6 +122,15 @@ export async function createQuote(data: InsertQuote) {
   return result;
 }
 
+export async function updateQuoteStatus(
+  id: number,
+  status: "pending" | "completed" | "rejected"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(quotes).set({ status }).where(eq(quotes.id, id));
+}
+
 // Queries para Agendamentos
 export async function getAppointments(limit = 50, offset = 0) {
   const db = await getDb();

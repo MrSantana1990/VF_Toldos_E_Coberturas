@@ -10,7 +10,7 @@ export const getLoginUrl = () => {
 
   if (!oauthPortalUrl || !appId) {
     // Mantém o site funcional mesmo sem configurar OAuth no .env (útil para preview local).
-    return "/";
+    return "/admin/login";
   }
 
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
