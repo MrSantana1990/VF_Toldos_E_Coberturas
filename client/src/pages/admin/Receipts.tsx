@@ -12,25 +12,11 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, ExternalLink, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { buildWhatsAppUrl, toWhatsAppPhone } from "@/lib/whatsapp";
-
-function buildReceiptWhatsAppText(receipt: any) {
-  const url = `${window.location.origin}/r/${receipt.id}`;
-  return [
-    `Olá ${receipt.clientName}!`,
-    "",
-    "Segue o recibo do serviço:",
-    `Nº ${receipt.id}`,
-    `Valor: R$ ${receipt.amount}`,
-    receipt.paymentMethod ? `Pagamento: ${receipt.paymentMethod}` : null,
-    "",
-    `Link: ${url}`,
-    "",
-    "Obrigado! VF Toldos & Coberturas",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
+import {
+  buildReceiptWhatsAppText,
+  buildWhatsAppUrl,
+  toWhatsAppPhone,
+} from "@/lib/whatsapp";
 
 export default function Receipts() {
   const { isAuthenticated, loading } = useAuth();
@@ -141,7 +127,13 @@ export default function Receipts() {
                                 toast.error("Telefone do cliente inválido.");
                                 return;
                               }
-                              const text = buildReceiptWhatsAppText(r);
+                              const text = buildReceiptWhatsAppText({
+                                clientName: r.clientName,
+                                receiptId: r.id,
+                                amount: r.amount,
+                                paymentMethod: r.paymentMethod ?? null,
+                                origin: window.location.origin,
+                              });
                               const url = buildWhatsAppUrl(phone, text);
                               window.open(url, "_blank", "noopener,noreferrer");
                             }}

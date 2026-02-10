@@ -15,7 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { buildWhatsAppUrl, toWhatsAppPhone } from "@/lib/whatsapp";
+import {
+  buildThanksWithReceiptWhatsAppText,
+  buildWhatsAppUrl,
+  toWhatsAppPhone,
+} from "@/lib/whatsapp";
 
 function getQueryDefaults() {
   if (typeof window === "undefined") return {};
@@ -31,20 +35,6 @@ function getQueryDefaults() {
     paymentMethod: params.get("paymentMethod") || "",
     notes: params.get("notes") || "",
   };
-}
-
-function buildThanksText(receipt: any) {
-  const link = `${window.location.origin}/r/${receipt.id}`;
-  return [
-    `Olá ${receipt.clientName}!`,
-    "",
-    "Serviço concluído ✅",
-    "Muito obrigado pela preferência.",
-    "",
-    `Recibo: ${link}`,
-    "",
-    "VF Toldos & Coberturas",
-  ].join("\n");
 }
 
 export default function NewReceipt() {
@@ -65,11 +55,12 @@ export default function NewReceipt() {
   );
   const [notes, setNotes] = useState(defaults.notes || "");
   const [createTransaction, setCreateTransaction] = useState(true);
+  const [createdReceipt, setCreatedReceipt] = useState<any | null>(null);
 
   const createReceiptMutation = trpc.receipts.create.useMutation({
     onSuccess: receipt => {
       toast.success("Recibo emitido com sucesso.");
-      setLocation(`/admin/receipts`);
+      setCreatedReceipt(receipt);
       setTimeout(() => {
         window.open(`/r/${receipt.id}`, "_blank", "noopener,noreferrer");
       }, 250);
@@ -135,6 +126,62 @@ export default function NewReceipt() {
           </Button>
         ) : null}
       </div>
+
+      {createdReceipt ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recibo emitido ✅</CardTitle>
+            <CardDescription>
+              Use os botões abaixo para enviar o link correto ao cliente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                window.open(
+                  `/r/${createdReceipt.id}`,
+                  "_blank",
+                  "noopener,noreferrer"
+                )
+              }
+            >
+              Ver recibo
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const link = `${window.location.origin}/r/${createdReceipt.id}`;
+                await navigator.clipboard.writeText(link);
+                toast.success("Link do recibo copiado.");
+              }}
+            >
+              Copiar link
+            </Button>
+            {normalizedPhone ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const url = buildWhatsAppUrl(
+                    normalizedPhone,
+                    buildThanksWithReceiptWhatsAppText({
+                      clientName: createdReceipt.clientName,
+                      receiptId: createdReceipt.id,
+                      origin: window.location.origin,
+                    })
+                  );
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                Enviar agradecimento
+              </Button>
+            ) : null}
+            <Button onClick={() => setLocation("/admin/receipts")}>
+              Ir para recibos
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -213,6 +260,32 @@ export default function NewReceipt() {
                 onChange={e => setServiceDescription(e.target.value)}
                 placeholder="Ex.: Instalação de toldo retrátil..."
               />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setServiceDescription("Instalação de toldo")}
+                >
+                  Instalação
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setServiceDescription("Manutenção de toldo")}
+                >
+                  Manutenção
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setServiceDescription("Visita técnica")}
+                >
+                  Visita técnica
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
@@ -231,6 +304,32 @@ export default function NewReceipt() {
                   onChange={e => setPaymentMethod(e.target.value)}
                   placeholder="PIX, dinheiro, cartão..."
                 />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("PIX")}
+                  >
+                    PIX
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Dinheiro")}
+                  >
+                    Dinheiro
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Cartão")}
+                  >
+                    Cartão
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -264,27 +363,32 @@ export default function NewReceipt() {
                 )}
               </Button>
 
-              {normalizedPhone ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    const tmp = {
-                      id: "preview",
-                      clientName,
-                      amount: amount || "0",
-                      issuedAt: new Date().toISOString(),
-                    };
-                    const url = buildWhatsAppUrl(
-                      normalizedPhone,
-                      buildThanksText(tmp)
-                    );
-                    window.open(url, "_blank", "noopener,noreferrer");
-                  }}
-                >
-                  Enviar agradecimento
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!createdReceipt || !normalizedPhone}
+                onClick={() => {
+                  if (!createdReceipt) {
+                    toast.error("Emita o recibo primeiro.");
+                    return;
+                  }
+                  if (!normalizedPhone) {
+                    toast.error("Telefone do cliente inválido.");
+                    return;
+                  }
+                  const url = buildWhatsAppUrl(
+                    normalizedPhone,
+                    buildThanksWithReceiptWhatsAppText({
+                      clientName: createdReceipt.clientName,
+                      receiptId: createdReceipt.id,
+                      origin: window.location.origin,
+                    })
+                  );
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                Enviar agradecimento (com link)
+              </Button>
             </div>
           </form>
         </CardContent>

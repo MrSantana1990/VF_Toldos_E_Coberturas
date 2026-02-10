@@ -116,3 +116,50 @@ export function buildAdminQuoteWhatsAppText(quote: {
 export function buildWhatsAppUrl(phone: string, text: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
+
+export function buildReceiptPublicUrl(origin: string, receiptId: string) {
+  const base = origin.replace(/\/+$/, "");
+  return `${base}/r/${receiptId}`;
+}
+
+export function buildReceiptWhatsAppText(input: {
+  clientName: string;
+  receiptId: string;
+  amount: string | number;
+  paymentMethod?: string | null;
+  origin: string;
+}) {
+  const link = buildReceiptPublicUrl(input.origin, input.receiptId);
+  const parts = [
+    `Olá ${input.clientName}!`,
+    "",
+    "Segue o recibo do serviço:",
+    `Nº ${input.receiptId}`,
+    `Valor: R$ ${input.amount}`,
+    input.paymentMethod ? `Pagamento: ${input.paymentMethod}` : null,
+    "",
+    `Link do recibo: ${link}`,
+    "",
+    "VF Toldos & Coberturas",
+  ].filter(Boolean);
+
+  return parts.join("\n");
+}
+
+export function buildThanksWithReceiptWhatsAppText(input: {
+  clientName: string;
+  receiptId: string;
+  origin: string;
+}) {
+  const link = buildReceiptPublicUrl(input.origin, input.receiptId);
+  return [
+    `Olá ${input.clientName}!`,
+    "",
+    "Serviço concluído ✅",
+    "Muito obrigado pela preferência.",
+    "",
+    `Recibo: ${link}`,
+    "",
+    "VF Toldos & Coberturas",
+  ].join("\n");
+}
