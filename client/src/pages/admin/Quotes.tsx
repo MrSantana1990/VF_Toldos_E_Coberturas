@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -20,6 +20,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   buildAdminQuoteWhatsAppText,
   buildQuoteWhatsAppText,
@@ -58,6 +78,11 @@ export default function Quotes() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<any | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+
   const { data: quotes, isLoading } = trpc.quotes.list.useQuery(undefined, {
     enabled: isAuthenticated,
   });
@@ -72,6 +97,38 @@ export default function Quotes() {
       toast.error(error?.message || "Falha ao atualizar status.");
     },
   });
+
+  const updateMutation = trpc.quotes.update.useMutation({
+    onSuccess: async () => {
+      toast.success("Orçamento atualizado.");
+      setEditOpen(false);
+      setEditDraft(null);
+      await utils.quotes.list.invalidate();
+      await utils.quotes.stats.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao atualizar orçamento.");
+    },
+  });
+
+  const deleteMutation = trpc.quotes.delete.useMutation({
+    onSuccess: async () => {
+      toast.success("Orçamento excluído.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      await utils.quotes.list.invalidate();
+      await utils.quotes.stats.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao excluir orçamento.");
+    },
+  });
+
+  const editAreaM2String = useMemo(() => {
+    if (!editDraft) return "";
+    const v = editDraft.areaM2;
+    return v === null || v === undefined ? "" : String(v);
+  }, [editDraft]);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -328,6 +385,41 @@ export default function Quotes() {
                               Drive
                             </a>
                           ) : null}
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setEditDraft({
+                                ...quote,
+                                width: String(quote.width ?? ""),
+                                projection: String(quote.projection ?? ""),
+                                areaM2:
+                                  quote.areaM2 === undefined ? null : quote.areaM2,
+                                material:
+                                  quote.material === undefined
+                                    ? null
+                                    : quote.material,
+                                notes: quote.notes === undefined ? null : quote.notes,
+                              });
+                              setEditOpen(true);
+                            }}
+                          >
+                            Editar
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setDeleteTarget(quote);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            Excluir
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -342,6 +434,252 @@ export default function Quotes() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={open => {
+          setEditOpen(open);
+          if (!open) setEditDraft(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar orçamento</DialogTitle>
+            <DialogDescription>Ajuste os dados do orçamento.</DialogDescription>
+          </DialogHeader>
+
+          {editDraft ? (
+            <form
+              className="grid gap-4"
+              onSubmit={e => {
+                e.preventDefault();
+                if (!editDraft.clientName?.trim()) {
+                  toast.error("Informe o nome do cliente.");
+                  return;
+                }
+                if (!editDraft.clientEmail?.trim()) {
+                  toast.error("Informe o email do cliente.");
+                  return;
+                }
+                if (!editDraft.clientPhone?.trim()) {
+                  toast.error("Informe o telefone do cliente.");
+                  return;
+                }
+                if (!editDraft.width?.toString().trim()) {
+                  toast.error("Informe a largura.");
+                  return;
+                }
+                if (!editDraft.projection?.toString().trim()) {
+                  toast.error("Informe a projeção/altura.");
+                  return;
+                }
+
+                const areaM2Raw = String(
+                  editDraft.areaM2String ?? editAreaM2String ?? ""
+                ).trim();
+                const areaM2 = areaM2Raw ? areaM2Raw : null;
+
+                updateMutation.mutate({
+                  id: Number(editDraft.id),
+                  clientName: editDraft.clientName,
+                  clientEmail: editDraft.clientEmail,
+                  clientPhone: editDraft.clientPhone,
+                  toldoType: editDraft.toldoType,
+                  material: editDraft.material?.trim() ? editDraft.material : null,
+                  width: editDraft.width,
+                  projection: editDraft.projection,
+                  areaM2,
+                  notes: editDraft.notes?.trim() ? editDraft.notes : null,
+                  status: editDraft.status,
+                });
+              }}
+            >
+              <div className="grid gap-2">
+                <Label>Cliente</Label>
+                <Input
+                  value={editDraft.clientName ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, clientName: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={editDraft.clientEmail ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, clientEmail: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editDraft.clientPhone ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, clientPhone: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={editDraft.toldoType}
+                    onValueChange={value =>
+                      setEditDraft((d: any) => ({ ...d, toldoType: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixo">Toldo Fixo</SelectItem>
+                      <SelectItem value="retratil">Toldo Retrátil</SelectItem>
+                      <SelectItem value="cortina">Cortina Rolo</SelectItem>
+                      <SelectItem value="policarbonato">Policarbonato</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editDraft.status}
+                    onValueChange={value =>
+                      setEditDraft((d: any) => ({ ...d, status: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="completed">Concluído</SelectItem>
+                      <SelectItem value="rejected">Rejeitado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Largura (m)</Label>
+                  <Input
+                    value={editDraft.width ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, width: e.target.value }))
+                    }
+                    placeholder="Ex.: 3.50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Projeção/Altura (m)</Label>
+                  <Input
+                    value={editDraft.projection ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({
+                        ...d,
+                        projection: e.target.value,
+                      }))
+                    }
+                    placeholder="Ex.: 2.50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Área (m²)</Label>
+                  <Input
+                    value={editDraft.areaM2String ?? editAreaM2String}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({
+                        ...d,
+                        areaM2String: e.target.value,
+                      }))
+                    }
+                    placeholder="Ex.: 8.75"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Material (opcional)</Label>
+                <Input
+                  value={editDraft.material ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, material: e.target.value }))
+                  }
+                  placeholder="Ex.: Lona acrílica"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Observações (opcional)</Label>
+                <Textarea
+                  value={editDraft.notes ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, notes: e.target.value }))
+                  }
+                  placeholder="Detalhes adicionais..."
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditOpen(false);
+                    setEditDraft(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={open => {
+          setDeleteOpen(open);
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir orçamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deleteTarget?.id) return;
+                deleteMutation.mutate({ id: Number(deleteTarget.id) });
+              }}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

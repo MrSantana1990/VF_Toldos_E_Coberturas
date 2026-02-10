@@ -19,8 +19,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
-import { isOAuthConfigured } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   Calendar,
@@ -30,17 +28,18 @@ import {
   LogOut,
   PanelLeft,
   Receipt,
+  Users,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { toast } from "sonner";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
   { icon: FileText, label: "Orçamentos", path: "/admin/quotes" },
   { icon: Receipt, label: "Recibos", path: "/admin/receipts" },
+  { icon: Users, label: "Clientes", path: "/admin/clients" },
   { icon: Calendar, label: "Agenda", path: "/admin/appointments" },
   { icon: DollarSign, label: "Finanças", path: "/admin/finances" },
 ];
@@ -83,13 +82,9 @@ export default function DashboardLayout({
           </div>
           <Button
             onClick={() => {
-              if (!isOAuthConfigured()) {
-                toast.error(
-                  "OAuth não configurado. Defina VITE_OAUTH_PORTAL_URL e VITE_APP_ID no .env."
-                );
-                return;
-              }
-              window.location.href = getLoginUrl();
+              // Sempre preferir o login local do admin.
+              // (OAuth é opcional para este projeto.)
+              window.location.href = "/admin/login";
             }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"

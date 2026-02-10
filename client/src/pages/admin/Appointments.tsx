@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +42,23 @@ import {
 } from "@/components/ui/select";
 import { buildWhatsAppUrl, toWhatsAppPhone } from "@/lib/whatsapp";
 
+function getQueryDefaults() {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  return {
+    clientName: params.get("clientName") || "",
+    clientPhone: params.get("clientPhone") || "",
+  };
+}
+
 export default function Appointments() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [appointmentType, setAppointmentType] = useState<
@@ -81,11 +102,31 @@ export default function Appointments() {
     },
   });
 
+  const deleteMutation = trpc.appointments.delete.useMutation({
+    onSuccess: async () => {
+      toast.success("Agendamento excluído.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      await utils.appointments.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao excluir agendamento.");
+    },
+  });
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       setLocation("/admin/login");
     }
   }, [isAuthenticated, loading, setLocation]);
+
+  useEffect(() => {
+    const defaults = getQueryDefaults();
+    if (!defaults.clientName && !defaults.clientPhone) return;
+    setDialogOpen(true);
+    setClientName(defaults.clientName);
+    setClientPhone(defaults.clientPhone);
+  }, []);
 
   if (loading) {
     return (
@@ -270,6 +311,17 @@ export default function Appointments() {
                           Emitir recibo
                         </Button>
                       ) : null}
+
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setDeleteTarget(apt);
+                          setDeleteOpen(true);
+                        }}
+                      >
+                        Excluir
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -404,6 +456,35 @@ export default function Appointments() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir agendamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deleteTarget?.id) return;
+                deleteMutation.mutate({ id: deleteTarget.id });
+              }}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

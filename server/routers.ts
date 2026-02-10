@@ -18,15 +18,22 @@ import {
   listImagesFromDrive,
   listQuotesFromDrive,
   updateQuoteStatusInDrive,
+  updateQuoteInDrive,
+  deleteQuoteFromDrive,
   saveQuoteToDrive,
   listAppointmentsFromDrive,
   saveAppointmentToDrive,
   updateAppointmentStatusInDrive,
+  deleteAppointmentFromDrive,
   listTransactionsFromDrive,
   saveTransactionToDrive,
+  deleteTransactionFromDrive,
+  updateTransactionInDrive,
   listReceiptsFromDrive,
   saveReceiptToDrive,
   getReceiptFromDriveById,
+  updateReceiptInDrive,
+  deleteReceiptFromDrive,
   type DriveQuote,
 } from "./drive";
 import { z } from "zod";
@@ -193,6 +200,17 @@ function toReceiptDto(input: any): ReceiptDto {
     driveFileName: input.driveFileName ?? input.fileName ?? null,
   };
 }
+
+type ClientDto = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  quotesCount: number;
+  receiptsCount: number;
+  appointmentsCount: number;
+  lastActivityAt: string;
+};
 
 function formatDriveError(error: unknown): string {
   const asAny = error as any;
@@ -427,7 +445,7 @@ export const appRouter = router({
         });
         return { success: true };
       }),
-    list: protectedProcedure.query(async () => {
+    list: adminProcedure.query(async () => {
       const dbConn = await db.getDb();
       if (dbConn) {
         const rows = await db.getQuotes();
@@ -443,7 +461,7 @@ export const appRouter = router({
         return [];
       }
     }),
-    stats: protectedProcedure.query(async () => {
+    stats: adminProcedure.query(async () => {
       const dbConn = await db.getDb();
       if (dbConn) {
         return db.getQuotesStats();
@@ -483,6 +501,77 @@ export const appRouter = router({
 
         await updateQuoteStatusInDrive(input.id, input.status);
         return { success: true } as const;
+      }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          clientName: z.string().min(1).optional(),
+          clientEmail: z.string().email().optional(),
+          clientPhone: z.string().min(1).optional(),
+          toldoType: z
+            .enum(["fixo", "retratil", "cortina", "policarbonato"])
+            .optional(),
+          material: z.string().nullable().optional(),
+          width: z.union([z.string().min(1), z.number()]).optional(),
+          projection: z.union([z.string().min(1), z.number()]).optional(),
+          areaM2: z.union([z.string().min(1), z.number()]).nullable().optional(),
+          notes: z.string().nullable().optional(),
+          status: z.enum(["pending", "completed", "rejected"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...rest } = input;
+        const patchKeys = Object.keys(rest).filter(
+          k => (rest as any)[k] !== undefined
+        );
+        if (!patchKeys.length) throw new Error("Nada para atualizar.");
+
+        const patch: Partial<DriveQuote> = {
+          ...(rest.clientName !== undefined ? { clientName: rest.clientName } : {}),
+          ...(rest.clientEmail !== undefined ? { clientEmail: rest.clientEmail } : {}),
+          ...(rest.clientPhone !== undefined ? { clientPhone: rest.clientPhone } : {}),
+          ...(rest.toldoType !== undefined ? { toldoType: rest.toldoType } : {}),
+          ...(rest.material !== undefined ? { material: rest.material } : {}),
+          ...(rest.width !== undefined ? { width: String(rest.width) } : {}),
+          ...(rest.projection !== undefined
+            ? { projection: String(rest.projection) }
+            : {}),
+          ...(rest.areaM2 !== undefined
+            ? { areaM2: rest.areaM2 === null ? null : String(rest.areaM2) }
+            : {}),
+          ...(rest.notes !== undefined ? { notes: rest.notes } : {}),
+          ...(rest.status !== undefined ? { status: rest.status } : {}),
+        };
+
+        const dbConn = await db.getDb();
+        if (dbConn) {
+          await db.updateQuote(id, patch as any);
+          return { ok: true } as const;
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para atualizar orçamento.");
+        }
+
+        await updateQuoteInDrive(id, patch);
+        return { ok: true } as const;
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) {
+          await db.deleteQuote(input.id);
+          return { ok: true } as const;
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para excluir orçamento.");
+        }
+
+        await deleteQuoteFromDrive(input.id);
+        return { ok: true } as const;
       }),
   }),
 
@@ -683,6 +772,23 @@ export const appRouter = router({
         await updateAppointmentStatusInDrive(String(input.id), input.status);
         return { ok: true };
       }),
+    delete: adminProcedure
+      .input(z.object({ id: z.union([z.string().min(1), z.number()]) }))
+      .mutation(async ({ input }) => {
+        if (ENV.databaseUrl) {
+          const id = Number(input.id);
+          if (!Number.isFinite(id)) throw new Error("ID inválido.");
+          await db.deleteAppointment(id);
+          return { ok: true };
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para excluir agendamentos.");
+        }
+
+        await deleteAppointmentFromDrive(String(input.id));
+        return { ok: true };
+      }),
   }),
   receipts: router({
     list: adminProcedure.query(async () => {
@@ -738,6 +844,114 @@ export const appRouter = router({
         }
 
         return toReceiptDto(receipt);
+      }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.string().min(1),
+          relatedQuoteId: z.number().nullable().optional(),
+          clientName: z.string().min(1).optional(),
+          clientEmail: z.string().email().nullable().optional(),
+          clientPhone: z.string().min(1).optional(),
+          serviceDescription: z.string().min(1).optional(),
+          amount: z.union([z.string().min(1), z.number()]).optional(),
+          paymentMethod: z.string().nullable().optional(),
+          notes: z.string().nullable().optional(),
+          issuedAt: z.string().optional(),
+          syncTransaction: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para atualizar recibos.");
+        }
+
+        const { id, syncTransaction, ...rest } = input;
+        const patchKeys = Object.keys(rest).filter(
+          k => (rest as any)[k] !== undefined
+        );
+        if (!patchKeys.length) throw new Error("Nada para atualizar.");
+
+        const receiptPatch: any = {
+          ...(rest.relatedQuoteId !== undefined
+            ? { relatedQuoteId: rest.relatedQuoteId ?? null }
+            : {}),
+          ...(rest.clientName !== undefined ? { clientName: rest.clientName } : {}),
+          ...(rest.clientEmail !== undefined
+            ? { clientEmail: rest.clientEmail ?? null }
+            : {}),
+          ...(rest.clientPhone !== undefined ? { clientPhone: rest.clientPhone } : {}),
+          ...(rest.serviceDescription !== undefined
+            ? { serviceDescription: rest.serviceDescription }
+            : {}),
+          ...(rest.amount !== undefined ? { amount: String(rest.amount) } : {}),
+          ...(rest.paymentMethod !== undefined
+            ? { paymentMethod: rest.paymentMethod ?? null }
+            : {}),
+          ...(rest.notes !== undefined ? { notes: rest.notes ?? null } : {}),
+          ...(rest.issuedAt !== undefined ? { issuedAt: rest.issuedAt } : {}),
+        };
+
+        await updateReceiptInDrive(id, receiptPatch);
+
+        if (syncTransaction !== false) {
+          try {
+            const txs = await listTransactionsFromDrive(500);
+            const matching = txs.filter(tx => tx.relatedReceiptId === id);
+            for (const tx of matching) {
+              await updateTransactionInDrive(tx.id, {
+                amount:
+                  receiptPatch.amount !== undefined
+                    ? String(receiptPatch.amount)
+                    : undefined,
+                transactionDate:
+                  receiptPatch.issuedAt !== undefined
+                    ? receiptPatch.issuedAt
+                    : undefined,
+                paymentMethod:
+                  receiptPatch.paymentMethod !== undefined
+                    ? receiptPatch.paymentMethod
+                    : undefined,
+                relatedQuoteId:
+                  receiptPatch.relatedQuoteId !== undefined
+                    ? receiptPatch.relatedQuoteId
+                    : undefined,
+                description:
+                  receiptPatch.clientName !== undefined
+                    ? `Recibo ${id} - ${receiptPatch.clientName}`
+                    : undefined,
+              });
+            }
+          } catch (error) {
+            console.warn("[Drive] Falha ao sincronizar transações do recibo:", error);
+          }
+        }
+
+        return { ok: true } as const;
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para excluir recibos.");
+        }
+
+        await deleteReceiptFromDrive(input.id);
+
+        try {
+          const txs = await listTransactionsFromDrive(500);
+          const matching = txs.filter(tx => tx.relatedReceiptId === input.id);
+          for (const tx of matching) {
+            await deleteTransactionFromDrive(tx.id);
+          }
+        } catch (error) {
+          console.warn(
+            "[Drive] Falha ao excluir transações relacionadas ao recibo:",
+            error
+          );
+        }
+
+        return { ok: true } as const;
       }),
     publicGet: publicProcedure
       .input(z.object({ id: z.string().min(1) }))
@@ -803,6 +1017,151 @@ export const appRouter = router({
         });
         return toTransactionDto(created);
       }),
+    delete: adminProcedure
+      .input(z.object({ id: z.union([z.string().min(1), z.number()]) }))
+      .mutation(async ({ input }) => {
+        if (ENV.databaseUrl) {
+          const id = Number(input.id);
+          if (!Number.isFinite(id)) throw new Error("ID inválido.");
+          await db.deleteTransaction(id);
+          return { ok: true } as const;
+        }
+
+        if (!isDriveConfigured()) {
+          throw new Error("Google Drive não configurado para excluir finanças.");
+        }
+
+        await deleteTransactionFromDrive(String(input.id));
+        return { ok: true } as const;
+      }),
+  }),
+  clients: router({
+    list: adminProcedure.query(async () => {
+      const normalizePhone = (value: unknown) => {
+        const raw = String(value ?? "").trim();
+        if (!raw) return null;
+        const digits = raw.replace(/\D/g, "");
+        return digits || null;
+      };
+
+      const normalizeEmail = (value: unknown) => {
+        const raw = String(value ?? "").trim().toLowerCase();
+        return raw || null;
+      };
+
+      const makeKey = (phone: string | null, email: string | null) =>
+        phone ? `tel:${phone}` : email ? `email:${email}` : null;
+
+      const map = new Map<string, ClientDto>();
+
+      const upsert = (input: {
+        name: string | null;
+        phone: string | null;
+        email: string | null;
+        lastAt: unknown;
+        kind: "quote" | "receipt" | "appointment";
+      }) => {
+        const key = makeKey(input.phone, input.email);
+        if (!key) return;
+
+        const current = map.get(key);
+        const lastActivityAt = toIso(input.lastAt);
+
+        if (!current) {
+          map.set(key, {
+            id: key,
+            name: input.name?.trim() || "Cliente",
+            phone: input.phone,
+            email: input.email,
+            quotesCount: input.kind === "quote" ? 1 : 0,
+            receiptsCount: input.kind === "receipt" ? 1 : 0,
+            appointmentsCount: input.kind === "appointment" ? 1 : 0,
+            lastActivityAt,
+          });
+          return;
+        }
+
+        map.set(key, {
+          ...current,
+          name: current.name || input.name?.trim() || "Cliente",
+          phone: current.phone ?? input.phone,
+          email: current.email ?? input.email,
+          quotesCount:
+            current.quotesCount + (input.kind === "quote" ? 1 : 0),
+          receiptsCount:
+            current.receiptsCount + (input.kind === "receipt" ? 1 : 0),
+          appointmentsCount:
+            current.appointmentsCount + (input.kind === "appointment" ? 1 : 0),
+          lastActivityAt:
+            current.lastActivityAt > lastActivityAt
+              ? current.lastActivityAt
+              : lastActivityAt,
+        });
+      };
+
+      const dbConn = await db.getDb();
+
+      if (dbConn) {
+        const quotes = await db.getQuotes(500, 0);
+        for (const q of quotes) {
+          upsert({
+            name: q.clientName ?? null,
+            phone: normalizePhone(q.clientPhone),
+            email: normalizeEmail(q.clientEmail),
+            lastAt: q.updatedAt ?? q.createdAt ?? new Date(),
+            kind: "quote",
+          });
+        }
+
+        const appointments = await db.getAppointments(500, 0);
+        for (const a of appointments) {
+          upsert({
+            name: a.clientName ?? null,
+            phone: normalizePhone(a.clientPhone),
+            email: null,
+            lastAt: a.updatedAt ?? a.createdAt ?? new Date(),
+            kind: "appointment",
+          });
+        }
+      } else if (isDriveConfigured()) {
+        const quotes = await listQuotesFromDrive(500);
+        for (const q of quotes) {
+          upsert({
+            name: q.clientName ?? null,
+            phone: normalizePhone(q.clientPhone),
+            email: normalizeEmail(q.clientEmail),
+            lastAt: q.updatedAt ?? q.createdAt ?? new Date(),
+            kind: "quote",
+          });
+        }
+
+        const receipts = await listReceiptsFromDrive(500);
+        for (const r of receipts) {
+          upsert({
+            name: r.clientName ?? null,
+            phone: normalizePhone(r.clientPhone),
+            email: normalizeEmail(r.clientEmail),
+            lastAt: r.updatedAt ?? r.issuedAt ?? r.createdAt ?? new Date(),
+            kind: "receipt",
+          });
+        }
+
+        const appointments = await listAppointmentsFromDrive(500);
+        for (const a of appointments) {
+          upsert({
+            name: a.clientName ?? null,
+            phone: normalizePhone(a.clientPhone),
+            email: null,
+            lastAt: a.updatedAt ?? a.appointmentDate ?? a.createdAt ?? new Date(),
+            kind: "appointment",
+          });
+        }
+      }
+
+      return Array.from(map.values()).sort((a, b) =>
+        b.lastActivityAt.localeCompare(a.lastActivityAt)
+      );
+    }),
   }),
 });
 

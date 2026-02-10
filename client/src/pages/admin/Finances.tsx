@@ -22,6 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 
 export default function Finances() {
   const { isAuthenticated, loading } = useAuth();
@@ -33,6 +44,8 @@ export default function Finances() {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   const { data: transactions, isLoading } = trpc.transactions.list.useQuery(
     undefined,
@@ -53,6 +66,18 @@ export default function Finances() {
     },
     onError: (error: any) => {
       toast.error(error?.message || "Falha ao registrar transação.");
+    },
+  });
+
+  const deleteMutation = trpc.transactions.delete.useMutation({
+    onSuccess: async () => {
+      toast.success("Transação excluída.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      await utils.transactions.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao excluir transação.");
     },
   });
 
@@ -288,6 +313,18 @@ export default function Finances() {
                     <p className="text-xs text-foreground/50">
                       {new Date(tx.transactionDate).toLocaleDateString("pt-BR")}
                     </p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1"
+                      onClick={() => {
+                        setDeleteTarget(tx);
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -299,6 +336,35 @@ export default function Finances() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir transação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deleteTarget?.id) return;
+                deleteMutation.mutate({ id: deleteTarget.id });
+              }}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

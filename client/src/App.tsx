@@ -9,6 +9,7 @@ import AdminAppointments from "@/pages/admin/Appointments";
 import AdminFinances from "@/pages/admin/Finances";
 import AdminReceipts from "@/pages/admin/Receipts";
 import AdminNewReceipt from "@/pages/admin/NewReceipt";
+import AdminClients from "@/pages/admin/Clients";
 import AdminLogin from "@/pages/admin/Login";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Route, Switch } from "wouter";
@@ -56,6 +57,14 @@ function AdminNewReceiptRoute() {
   );
 }
 
+function AdminClientsRoute() {
+  return (
+    <DashboardLayout>
+      <AdminClients />
+    </DashboardLayout>
+  );
+}
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -66,6 +75,7 @@ function Router() {
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/quotes" component={AdminQuotesRoute} />
+      <Route path="/admin/clients" component={AdminClientsRoute} />
       <Route path="/admin/receipts/new" component={AdminNewReceiptRoute} />
       <Route path="/admin/receipts" component={AdminReceiptsRoute} />
       <Route path="/admin/appointments" component={AdminAppointmentsRoute} />

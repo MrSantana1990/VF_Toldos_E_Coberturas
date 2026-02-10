@@ -150,6 +150,19 @@ export async function updateQuoteStatus(
   await db.update(quotes).set({ status }).where(eq(quotes.id, id));
 }
 
+export async function updateQuote(id: number, patch: Partial<InsertQuote>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (!Object.keys(patch).length) return;
+  await db.update(quotes).set(patch).where(eq(quotes.id, id));
+}
+
+export async function deleteQuote(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(quotes).where(eq(quotes.id, id));
+}
+
 // Queries para Agendamentos
 export async function getAppointments(limit = 50, offset = 0) {
   const db = await getDb();
@@ -178,6 +191,12 @@ export async function updateAppointmentStatus(
   await db.update(appointments).set({ status }).where(eq(appointments.id, id));
 }
 
+export async function deleteAppointment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(appointments).where(eq(appointments.id, id));
+}
+
 // Queries para Transações
 export async function getTransactions(limit = 50, offset = 0) {
   const db = await getDb();
@@ -195,6 +214,12 @@ export async function createTransaction(data: InsertTransaction) {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(transactions).values(data);
   return result;
+}
+
+export async function deleteTransaction(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(transactions).where(eq(transactions.id, id));
 }
 
 // Queries para Galeria

@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -13,18 +13,81 @@ import { Loader2, ArrowLeft, ExternalLink, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   buildReceiptWhatsAppText,
   buildWhatsAppUrl,
   toWhatsAppPhone,
 } from "@/lib/whatsapp";
 
+function toDatetimeLocalValue(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function Receipts() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<any | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   const { data: receipts, isLoading } = trpc.receipts.list.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+
+  const updateMutation = trpc.receipts.update.useMutation({
+    onSuccess: async () => {
+      toast.success("Recibo atualizado.");
+      setEditOpen(false);
+      setEditDraft(null);
+      await utils.receipts.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao atualizar recibo.");
+    },
+  });
+
+  const deleteMutation = trpc.receipts.delete.useMutation({
+    onSuccess: async () => {
+      toast.success("Recibo excluído.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      await utils.receipts.list.invalidate();
+      await utils.transactions.list.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Falha ao excluir recibo.");
+    },
+  });
+
+  const editIssuedAtLocal = useMemo(() => {
+    if (!editDraft?.issuedAt) return "";
+    return toDatetimeLocalValue(editDraft.issuedAt);
+  }, [editDraft?.issuedAt]);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -153,6 +216,28 @@ export default function Receipts() {
                           >
                             Copiar link
                           </Button>
+
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setEditDraft({ ...r });
+                              setEditOpen(true);
+                            }}
+                          >
+                            Editar
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setDeleteTarget(r);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            Excluir
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -167,6 +252,187 @@ export default function Receipts() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={open => {
+          setEditOpen(open);
+          if (!open) setEditDraft(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar recibo</DialogTitle>
+            <DialogDescription>
+              Ajuste dados do recibo e (opcional) sincronize a entrada do financeiro.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editDraft ? (
+            <form
+              className="grid gap-4"
+              onSubmit={e => {
+                e.preventDefault();
+                updateMutation.mutate({
+                  id: editDraft.id,
+                  clientName: editDraft.clientName,
+                  clientEmail: editDraft.clientEmail || null,
+                  clientPhone: editDraft.clientPhone,
+                  serviceDescription: editDraft.serviceDescription,
+                  amount: editDraft.amount,
+                  paymentMethod: editDraft.paymentMethod || null,
+                  notes: editDraft.notes || null,
+                  issuedAt: editDraft.issuedAtLocal
+                    ? new Date(editDraft.issuedAtLocal).toISOString()
+                    : undefined,
+                  syncTransaction: true,
+                });
+              }}
+            >
+              <div className="grid gap-2">
+                <Label>Cliente</Label>
+                <Input
+                  value={editDraft.clientName ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, clientName: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Email (opcional)</Label>
+                <Input
+                  value={editDraft.clientEmail ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, clientEmail: e.target.value }))
+                  }
+                  placeholder="cliente@exemplo.com"
+                />
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editDraft.clientPhone ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, clientPhone: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Data/Hora</Label>
+                  <Input
+                    type="datetime-local"
+                    value={editDraft.issuedAtLocal ?? editIssuedAtLocal}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, issuedAtLocal: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Descrição do serviço</Label>
+                <Textarea
+                  value={editDraft.serviceDescription ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({
+                      ...d,
+                      serviceDescription: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Valor (R$)</Label>
+                  <Input
+                    value={editDraft.amount ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({ ...d, amount: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Pagamento (opcional)</Label>
+                  <Input
+                    value={editDraft.paymentMethod ?? ""}
+                    onChange={e =>
+                      setEditDraft((d: any) => ({
+                        ...d,
+                        paymentMethod: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Observações (opcional)</Label>
+                <Textarea
+                  value={editDraft.notes ?? ""}
+                  onChange={e =>
+                    setEditDraft((d: any) => ({ ...d, notes: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditOpen(false);
+                    setEditDraft(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={open => {
+          setDeleteOpen(open);
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir recibo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação também pode remover a entrada relacionada no financeiro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deleteTarget?.id) return;
+                deleteMutation.mutate({ id: deleteTarget.id });
+              }}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

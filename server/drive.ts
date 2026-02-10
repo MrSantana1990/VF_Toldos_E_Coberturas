@@ -401,6 +401,81 @@ export async function updateQuoteStatusInDrive(
   });
 }
 
+export async function updateQuoteInDrive(
+  quoteId: number,
+  patch: Partial<
+    Omit<DriveQuote, "id" | "createdAt" | "updatedAt" | "fileId" | "fileName">
+  >
+) {
+  requireFolderId(
+    ENV.googleDriveQuotesFolderId,
+    "GOOGLE_DRIVE_QUOTES_FOLDER_ID"
+  );
+
+  const drive = getDrive();
+  const prefix = `orcamento-${quoteId}-`;
+
+  const list = await drive.files.list({
+    q: `'${ENV.googleDriveQuotesFolderId}' in parents and trashed = false and mimeType = 'application/json' and name contains '${prefix}'`,
+    fields: "files(id,name)",
+    pageSize: 5,
+  });
+
+  const file = (list.data.files ?? []).find(f => f.id);
+  if (!file?.id) {
+    throw new Error(
+      `Arquivo de orÃ§amento nÃ£o encontrado no Drive (id=${quoteId}).`
+    );
+  }
+
+  const content = await drive.files.get(
+    { fileId: file.id, alt: "media" },
+    { responseType: "json" }
+  );
+  const payload = (content.data ?? {}) as any;
+  const nowIso = new Date().toISOString();
+
+  let updated: any;
+  if (payload?.version === 1) {
+    updated = { ...payload, ...patch, updatedAt: nowIso };
+  } else {
+    updated = { version: 1, ...(payload as object), ...patch, updatedAt: nowIso };
+  }
+
+  await drive.files.update({
+    fileId: file.id,
+    media: {
+      mimeType: "application/json",
+      body: JSON.stringify(updated, null, 2),
+    },
+  });
+}
+
+export async function deleteQuoteFromDrive(quoteId: number) {
+  requireFolderId(
+    ENV.googleDriveQuotesFolderId,
+    "GOOGLE_DRIVE_QUOTES_FOLDER_ID"
+  );
+
+  const drive = getDrive();
+  const prefix = `orcamento-${quoteId}-`;
+
+  const list = await drive.files.list({
+    q: `'${ENV.googleDriveQuotesFolderId}' in parents and trashed = false and mimeType = 'application/json' and name contains '${prefix}'`,
+    fields: "files(id,name)",
+    pageSize: 5,
+  });
+
+  const file = (list.data.files ?? []).find(f => f.id);
+  if (!file?.id) {
+    throw new Error(
+      `Arquivo de orÃ§amento nÃ£o encontrado no Drive (id=${quoteId}).`
+    );
+  }
+
+  await drive.files.delete({ fileId: file.id });
+}
+
 function getAdminDataFolderId() {
   return ENV.googleDriveAdminFolderId || ENV.googleDriveQuotesFolderId;
 }
@@ -416,6 +491,11 @@ type DriveJsonMeta = {
   fileId?: string;
   fileName?: string;
 };
+
+export async function deleteDriveFile(fileId: string) {
+  const drive = getDrive();
+  await drive.files.delete({ fileId });
+}
 
 export type DriveAppointment = {
   id: string;
@@ -546,6 +626,14 @@ async function updateJsonFile(fileId: string, payload: object) {
   });
 }
 
+async function findJsonFileByPrefix(
+  prefix: string
+): Promise<{ id: string; name?: string } | null> {
+  const files = await listJsonFilesFromAdminFolder(prefix, 5);
+  const file = files.find(f => f.id);
+  return file?.id ? file : null;
+}
+
 export async function saveAppointmentToDrive(
   input: Omit<DriveAppointment, "id" | "createdAt" | "updatedAt">
 ) {
@@ -601,8 +689,7 @@ export async function updateAppointmentStatusInDrive(
   status: DriveAppointment["status"]
 ) {
   const prefix = `agendamento-${appointmentId}-`;
-  const files = await listJsonFilesFromAdminFolder(prefix, 5);
-  const file = files.find(f => f.id);
+  const file = await findJsonFileByPrefix(prefix);
   if (!file?.id) {
     throw new Error(
       `Agendamento não encontrado no Drive (id=${appointmentId}).`
@@ -624,6 +711,52 @@ export async function updateAppointmentStatusInDrive(
         };
 
   await updateJsonFile(file.id, updated);
+}
+
+export async function updateAppointmentInDrive(
+  appointmentId: string,
+  patch: Partial<
+    Omit<
+      DriveAppointment,
+      "id" | "createdAt" | "updatedAt" | "fileId" | "fileName"
+    >
+  >
+) {
+  const prefix = `agendamento-${appointmentId}-`;
+  const file = await findJsonFileByPrefix(prefix);
+  if (!file?.id) {
+    throw new Error(
+      `Agendamento não encontrado no Drive (id=${appointmentId}).`
+    );
+  }
+
+  const { raw } = await readJsonFile<any>(file.id);
+  const nowIso = new Date().toISOString();
+
+  const updated =
+    raw?.version === 1
+      ? { ...raw, ...patch, updatedAt: nowIso }
+      : {
+          version: 1,
+          kind: "appointment",
+          ...(raw as object),
+          ...patch,
+          updatedAt: nowIso,
+        };
+
+  await updateJsonFile(file.id, updated);
+}
+
+export async function deleteAppointmentFromDrive(appointmentId: string) {
+  const prefix = `agendamento-${appointmentId}-`;
+  const file = await findJsonFileByPrefix(prefix);
+  if (!file?.id) {
+    throw new Error(
+      `Agendamento não encontrado no Drive (id=${appointmentId}).`
+    );
+  }
+
+  await deleteDriveFile(file.id);
 }
 
 export async function saveTransactionToDrive(
@@ -673,6 +806,47 @@ export async function listTransactionsFromDrive(
     }
   }
   return results;
+}
+
+export async function deleteTransactionFromDrive(transactionId: string) {
+  const fileName = `transacao-${transactionId}.json`;
+  const file = await findJsonFileByPrefix(fileName);
+  if (!file?.id) {
+    throw new Error(`Transação não encontrada no Drive (id=${transactionId}).`);
+  }
+  await deleteDriveFile(file.id);
+}
+
+export async function updateTransactionInDrive(
+  transactionId: string,
+  patch: Partial<
+    Omit<
+      DriveTransaction,
+      "id" | "createdAt" | "updatedAt" | "fileId" | "fileName"
+    >
+  >
+) {
+  const fileName = `transacao-${transactionId}.json`;
+  const file = await findJsonFileByPrefix(fileName);
+  if (!file?.id) {
+    throw new Error(`Transação não encontrada no Drive (id=${transactionId}).`);
+  }
+
+  const { raw } = await readJsonFile<any>(file.id);
+  const nowIso = new Date().toISOString();
+
+  const updated =
+    raw?.version === 1
+      ? { ...raw, ...patch, updatedAt: nowIso }
+      : {
+          version: 1,
+          kind: "transaction",
+          ...(raw as object),
+          ...patch,
+          updatedAt: nowIso,
+        };
+
+  await updateJsonFile(file.id, updated);
 }
 
 export async function saveReceiptToDrive(
@@ -728,13 +902,50 @@ export async function getReceiptFromDriveById(
   receiptId: string
 ): Promise<DriveReceipt | null> {
   const prefix = `recibo-${receiptId}-`;
-  const files = await listJsonFilesFromAdminFolder(prefix, 5);
-  const file = files.find(f => f.id);
+  const file = await findJsonFileByPrefix(prefix);
   if (!file?.id) return null;
 
   const { payload } = await readJsonFile<DriveReceipt>(file.id);
   if (!payload) return null;
   return { ...payload, fileId: file.id, fileName: file.name };
+}
+
+export async function updateReceiptInDrive(
+  receiptId: string,
+  patch: Partial<
+    Omit<DriveReceipt, "id" | "createdAt" | "updatedAt" | "fileId" | "fileName">
+  >
+) {
+  const prefix = `recibo-${receiptId}-`;
+  const file = await findJsonFileByPrefix(prefix);
+  if (!file?.id) {
+    throw new Error(`Recibo não encontrado no Drive (id=${receiptId}).`);
+  }
+
+  const { raw } = await readJsonFile<any>(file.id);
+  const nowIso = new Date().toISOString();
+
+  const updated =
+    raw?.version === 1
+      ? { ...raw, ...patch, updatedAt: nowIso }
+      : {
+          version: 1,
+          kind: "receipt",
+          ...(raw as object),
+          ...patch,
+          updatedAt: nowIso,
+        };
+
+  await updateJsonFile(file.id, updated);
+}
+
+export async function deleteReceiptFromDrive(receiptId: string) {
+  const prefix = `recibo-${receiptId}-`;
+  const file = await findJsonFileByPrefix(prefix);
+  if (!file?.id) {
+    throw new Error(`Recibo não encontrado no Drive (id=${receiptId}).`);
+  }
+  await deleteDriveFile(file.id);
 }
 
 export type DriveImageItem = {

@@ -202,7 +202,7 @@ export default function Admin() {
             <CardTitle>Ações Rápidas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
               <button
                 type="button"
                 onClick={() => setLocation("/admin/quotes")}
@@ -211,6 +211,16 @@ export default function Admin() {
                 <h3 className="font-semibold text-foreground">Orçamentos</h3>
                 <p className="text-sm text-foreground/70">
                   Gerenciar orçamentos recebidos
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocation("/admin/clients")}
+                className="p-4 border border-border rounded-lg hover:bg-muted transition-colors text-left"
+              >
+                <h3 className="font-semibold text-foreground">Clientes</h3>
+                <p className="text-sm text-foreground/70">
+                  Lista automática de clientes
                 </p>
               </button>
               <button
