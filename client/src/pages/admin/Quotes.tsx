@@ -8,39 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-function digitsOnly(value: string) {
-  return (value || "").replace(/\D+/g, "");
-}
-
-function toWhatsAppPhone(input: string) {
-  const digits = digitsOnly(input);
-  if (!digits) return "";
-
-  // Heurística simples para BR: se tiver 10/11 dígitos (DDD+numero), prefixa 55.
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-
-  return digits;
-}
-
-function buildWhatsAppText(quote: any) {
-  const parts = [
-    `Olá ${quote.clientName}!`,
-    "",
-    "Recebemos sua solicitação de orçamento:",
-    `- Tipo: ${quote.toldoType}`,
-    `- Medidas: ${quote.width} x ${quote.projection} m`,
-    quote.areaM2 ? `- Área estimada: ${quote.areaM2} m²` : null,
-    quote.material ? `- Material: ${quote.material}` : null,
-    quote.notes ? `- Observações: ${quote.notes}` : null,
-    "",
-    "Se quiser, pode responder por aqui com fotos do local e endereço para agilizar.",
-    "",
-    "VF Toldos & Coberturas",
-  ].filter(Boolean);
-
-  return parts.join("\n");
-}
+import {
+  buildAdminQuoteWhatsAppText,
+  buildQuoteWhatsAppText,
+  buildWhatsAppUrl,
+  getCompanyWhatsAppPhone,
+  getDevWhatsAppPhone,
+  toWhatsAppPhone,
+} from "@/lib/whatsapp";
 
 export default function Quotes() {
   const { isAuthenticated, loading } = useAuth();
@@ -193,12 +168,12 @@ export default function Quotes() {
                                 toast.error("Telefone do cliente inválido.");
                                 return;
                               }
-                              const text = buildWhatsAppText(quote);
-                              const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+                              const text = buildQuoteWhatsAppText(quote);
+                              const url = buildWhatsAppUrl(phone, text);
                               window.open(url, "_blank", "noopener,noreferrer");
                             }}
                           >
-                            WhatsApp
+                            WhatsApp cliente
                           </Button>
 
                           <Button
@@ -206,13 +181,48 @@ export default function Quotes() {
                             size="sm"
                             variant="ghost"
                             onClick={async () => {
-                              const text = buildWhatsAppText(quote);
+                              const text = buildQuoteWhatsAppText(quote);
                               await navigator.clipboard.writeText(text);
                               toast.success("Texto copiado.");
                             }}
                           >
                             Copiar
                           </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              const phone = getCompanyWhatsAppPhone();
+                              if (!phone) {
+                                toast.error("WhatsApp da empresa não configurado.");
+                                return;
+                              }
+                              const text = buildAdminQuoteWhatsAppText(quote);
+                              const url = buildWhatsAppUrl(phone, text);
+                              window.open(url, "_blank", "noopener,noreferrer");
+                            }}
+                          >
+                            Cópia VS
+                          </Button>
+
+                          {getDevWhatsAppPhone() ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                const phone = getDevWhatsAppPhone();
+                                if (!phone) return;
+                                const text = buildAdminQuoteWhatsAppText(quote);
+                                const url = buildWhatsAppUrl(phone, text);
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              Cópia dev
+                            </Button>
+                          ) : null}
 
                           {"driveFileId" in quote && quote.driveFileId ? (
                             <a

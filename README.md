@@ -26,6 +26,19 @@ Abra `http://localhost:3000`.
 - URL: `/admin/login`
 - Usuário/senha padrão: `admin` / `admin2026` (você pode sobrescrever com `ADMIN_USERNAME` e `ADMIN_PASSWORD` no ambiente).
 
+## WhatsApp (painel admin)
+
+Na tela de orçamentos (`/admin/quotes`) existem botões para:
+
+- **WhatsApp cliente**: abre a conversa com o cliente com uma mensagem pronta.
+- **Cópia VS**: abre uma cópia do orçamento no WhatsApp da empresa.
+- **Cópia dev**: abre uma cópia no WhatsApp do desenvolvedor (só aparece se configurar).
+
+Variáveis do frontend (Vite):
+
+- `VITE_WHATSAPP_COMPANY_PHONE` (ex.: `5519988720017`)
+- `VITE_WHATSAPP_DEV_PHONE` (opcional)
+
 ## Build/produção local
 
 `pnpm build`
