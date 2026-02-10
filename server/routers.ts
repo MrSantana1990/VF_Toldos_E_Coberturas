@@ -95,6 +95,11 @@ function formatDriveError(error: unknown): string {
       "Dica: compartilhe a pasta de orçamentos com o e-mail da Service Account como Editor e tente novamente."
     );
   }
+  if (msgLower.includes("service accounts do not have storage quota")) {
+    hints.push(
+      "Dica: Service Account pode falhar para upload por falta de quota. Configure Google OAuth (GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET/GOOGLE_OAUTH_REFRESH_TOKEN) para salvar usando sua conta Google."
+    );
+  }
 
   const statusPart =
     status !== undefined ? ` (status ${status}${statusText ? ` ${statusText}` : ""})` : "";

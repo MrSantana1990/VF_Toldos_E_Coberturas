@@ -64,16 +64,21 @@ Coloque um arquivo `logo.png` (ou `logo.jpg/.jpeg/.webp`) dentro da mesma pasta 
 
 ### Orçamentos (escrita — requer autenticação)
 
-Para salvar **orçamentos** como JSON no Drive é necessário autenticação via **Service Account** (ou usar banco).
+Para salvar **orçamentos** como JSON no Drive é necessário autenticação (ou usar banco).
 Não existe upload “anônimo” no Drive só por estar público.
 
-Para armazenar **orçamentos** e carregar **imagens do portfólio** pelo Google Drive usando API:
+Opções suportadas para **salvar orçamentos**:
+
+- **Service Account** (Drive API): configure `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` (recomendado) e compartilhe a pasta como **Editor**.
+- **Google OAuth** (Drive API): use `GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN` para salvar usando sua conta Google (útil se aparecer o erro “Service Accounts do not have storage quota”).
+
+Para usar Google Drive API:
 
 - Crie uma **Service Account** no Google Cloud, habilite a **Google Drive API** e gere uma chave.
 - No Google Drive, compartilhe a pasta com o **e-mail** da Service Account (permissão de **Editor**).
 - Configure no ambiente:
-  - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-  - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (no Netlify, use `\\n` no lugar de quebras de linha)
+  - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` (recomendado no Netlify)
+  - (ou) `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
   - `GOOGLE_DRIVE_QUOTES_FOLDER_ID` (pasta para JSONs de orçamentos)
   - `GOOGLE_DRIVE_IMAGES_FOLDER_ID` (pasta de imagens)
 

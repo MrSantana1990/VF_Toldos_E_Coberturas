@@ -88,6 +88,12 @@ type ServiceAccountJson = {
   private_key?: unknown;
 };
 
+type GoogleOAuthConfig = {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+};
+
 function decodeBase64(input: string): string {
   return Buffer.from(input, "base64").toString("utf8");
 }
@@ -141,8 +147,21 @@ function resolveServiceAccount(): { email: string; privateKey: string } | null {
 }
 
 export function isDriveConfigured() {
-  const resolved = resolveServiceAccount();
-  return Boolean(resolved?.email && resolved?.privateKey);
+  const sa = resolveServiceAccount();
+  if (sa?.email && sa?.privateKey) return true;
+
+  const oauth = resolveGoogleOAuth();
+  return Boolean(oauth?.clientId && oauth?.clientSecret && oauth?.refreshToken);
+}
+
+function resolveGoogleOAuth(): GoogleOAuthConfig | null {
+  const clientId = ENV.googleOAuthClientId?.trim();
+  const clientSecret = ENV.googleOAuthClientSecret?.trim();
+  const refreshToken = ENV.googleOAuthRefreshToken?.trim();
+
+  if (!clientId || !clientSecret || !refreshToken) return null;
+
+  return { clientId, clientSecret, refreshToken };
 }
 
 export type PublicFolderAccessResult = {
@@ -187,16 +206,18 @@ export async function checkPublicFolderAccess(
 function getDrive(): DriveClient {
   if (_drive) return _drive;
 
-  if (!isDriveConfigured()) {
-    throw new Error(
-      "Google Drive não configurado: defina GOOGLE_SERVICE_ACCOUNT_EMAIL e GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY."
-    );
+  const oauth = resolveGoogleOAuth();
+  if (oauth) {
+    const auth = new google.auth.OAuth2(oauth.clientId, oauth.clientSecret);
+    auth.setCredentials({ refresh_token: oauth.refreshToken });
+    _drive = google.drive({ version: "v3", auth });
+    return _drive;
   }
 
   const resolved = resolveServiceAccount();
   if (!resolved) {
     throw new Error(
-      "Google Drive não configurado: defina as credenciais da Service Account (recomendado: GOOGLE_SERVICE_ACCOUNT_JSON_BASE64)."
+      "Google Drive não configurado: defina as credenciais da Service Account (recomendado: GOOGLE_SERVICE_ACCOUNT_JSON_BASE64) ou configure Google OAuth (GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN)."
     );
   }
 
